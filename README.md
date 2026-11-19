@@ -32,7 +32,7 @@ node examples/hello.mjs
 `npm run check` runs the strict TypeScript build and Node's built-in test runner. No external test framework or runtime dependency is required. If dependency installation is unavailable, a compatible globally installed `tsc` can run the same checks.
 
 ```js
-import { buildQuadstream, exportPartitions, QuadstreamSession } from '@quadstream/core';
+import { buildQuadstream, exportPartitions, QuadstreamSession, QuadstreamLoader, fetchFromBundle } from '@quadstream/core';
 
 const source = {
   type: 'FeatureCollection',
@@ -51,6 +51,12 @@ const { manifest, partitions } = exportPartitions(dataset, { fileDepth: 3 });
 const session = new QuadstreamSession(manifest);
 for (const [key, bytes] of partitions) session.load(key, bytes);
 const recovered = session.query({ level: 11 });
+
+// A transport-agnostic lazy loader is also available for remote partitions:
+const lazySession = new QuadstreamSession(manifest);
+const loader = new QuadstreamLoader(lazySession, fetchFromBundle({ manifest, partitions }),
+  { concurrency: 4, cacheBytes: 1024 * 1024 });
+await loader.loadLatest({ level: 11 });
 ```
 
 **Note:** During local development, run `npm run build` and use `../dist/index.js` from the example rather than a published package name; the public import above illustrates the intended package API.
@@ -63,13 +69,13 @@ Coordinates are **planar**, not automatically projected; caller-provided longitu
 
 A detail level is an integer from `0` (coarsest) through `maxLevel - 1` (finest). More detailed levels form nested vertex subsets *in the BLG hierarchy*. A coarse simplification can be invalid even if the original is valid; the synchronous dataset query makes a **dataset-wide validity decision** and conservatively falls back to **full original geometry for every selected feature, regardless of viewport** so shared boundaries remain consistent. The level-wise result is therefore **not guaranteed to be monotonic when fallback occurs**. The progressive session reports incomplete or omitted features until required partitions arrive and uses the same global fallback when all partitions are available.
 
-Viewport queries perform **feature-bounds filtering**, not line clipping. Geometry can extend beyond the requested viewport. The partition planner conservatively requests every partition with potentially relevant priority, even when its bounding box is outside the viewport, because a long line may cross the view without any vertices inside it.
+Viewport queries perform **feature-bounds filtering**, not line clipping. Geometry can extend beyond the requested viewport. The lazy loader supports an injected async fetcher, AbortSignal cancellation, bounded concurrency, a raw-byte LRU cache, and newest-view suppression. It does not provide an HTTP client or persistent cache. The partition planner conservatively requests every partition with potentially relevant priority, even when its bounding box is outside the viewport, because a long line may cross the view without any vertices inside it.
 
 ## What is implemented in this revival?
 
 This combined modernization covers the foundation, topology, sparse quadtree, BLG, combined engine, viewport index and versioned progressive artifact scopes. It also includes deterministic fuzz/property-style tests, API declarations, a runnable example, and architecture documentation.
 
-It does **not** claim that progressive loading is network-integrated or that a production map renderer is available. The following are deliberately deferred: full streaming fetch/cache/cancel transport, robust high-scale topology validation, CLI and format adapters, MapLibre integration, visual demo, benchmarking against Tippecanoe, npm release.
+It does **not** claim that progressive loading is network-integrated or that a production map renderer is available. The following are deliberately deferred: production-grade HTTP transport/CDN/persistent caching, robust high-scale topology validation, CLI and format adapters, MapLibre integration, visual demo, benchmarking against Tippecanoe, npm release.
 
 See [the architecture](docs/ARCHITECTURE.md), [historical provenance](docs/HISTORY.md), [contributing](CONTRIBUTING.md), and [project roadmap](plans/PROJECT_ROADMAP.md).
 

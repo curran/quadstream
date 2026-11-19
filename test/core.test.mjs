@@ -304,3 +304,93 @@ test('degenerate zero-length input lines do not silently enter topology',()=>{
   assert.throws(()=>buildTopology(collection({type:'Feature',properties:{},geometry:{
     type:'LineString',coordinates:[[5,7],[5,7]]}})),/distinct coordinates/);
 });
+
+test('lazy loader fetches only needed levels and reuses validated session state',async()=>{
+  const {QuadstreamLoader,fetchFromBundle}=await import('../dist/index.js');
+  const line=Array.from({length:80},(_,i)=>[i,Math.sin(i/5)*20]);
+  const source=collection({type:'Feature',id:'line',properties:{},geometry:{type:'LineString',coordinates:line}});
+  const ds=buildQuadstream(source,{maxLevel:16});
+  const bundle=exportPartitions(ds,{fileDepth:1});
+  assert.ok(bundle.partitions.size>1);
+  const session=new QuadstreamSession(bundle.manifest);
+  const calls=[];
+  const fetcher=async(key,opts)=>{calls.push(key);return fetchFromBundle(bundle)(key,opts);};
+  const loader=new QuadstreamLoader(session,fetcher,{concurrency:2,cacheBytes:10000});
+  await loader.ensureLevel(0);
+  assert.deepEqual(calls,requiredPartitionKeys(bundle.manifest,0));
+  assert.ok(loader.cacheSizeBytes<=10000);
+  await loader.ensureLevel(0);
+  assert.deepEqual(calls,requiredPartitionKeys(bundle.manifest,0));
+  const result=await loader.loadLatest({level:15});
+  assert.equal(result.complete,true);
+  assert.deepEqual(result.geojson,ds.query({level:15}).geojson);
+  assert.equal(new Set(calls).size,bundle.partitions.size);
+  assert.equal(loader.session.loadedKeys.length,bundle.partitions.size);
+});
+
+test('loader respects concurrency limits and propagates fetch corruption',async()=>{
+  const {QuadstreamLoader,fetchFromBundle}=await import('../dist/index.js');
+  const source=collection({type:'Feature',id:'line',properties:{},geometry:{type:'LineString',coordinates:
+    Array.from({length:200},(_,i)=>[i,Math.cos(i/10)*i])}});
+  const bundle=exportPartitions(buildQuadstream(source,{maxLevel:18}),{fileDepth:1});
+  let inFlight=0,highWater=0;
+  const session=new QuadstreamSession(bundle.manifest);
+  const loader=new QuadstreamLoader(session,async(key,opts)=>{
+    highWater=Math.max(highWater,++inFlight);
+    await new Promise(r=>setTimeout(r,1));
+    inFlight--;
+    return fetchFromBundle(bundle)(key,opts);
+  },{concurrency:2,cacheBytes:100});
+  await loader.ensureLevel(17);
+  assert.ok(highWater<=2 && highWater>=1);
+  assert.ok(loader.cacheSizeBytes<=100);
+  const brokenSession=new QuadstreamSession(bundle.manifest);
+  const brokenLoader=new QuadstreamLoader(brokenSession,async(key,opts)=>{
+    const bytes=await fetchFromBundle(bundle)(key,opts);
+    bytes[bytes.length-1]^=1;return bytes;
+  });
+  await assert.rejects(brokenLoader.ensureLevel(0),/checksum/);
+  assert.deepEqual(brokenSession.loadedKeys,[]);
+  assert.throws(()=>new QuadstreamLoader(session,fetchFromBundle(bundle),{concurrency:0}),/concurrency/);
+});
+
+test('latest-view cancellation prevents stale fetch results from being applied',async()=>{
+  const {QuadstreamLoader,fetchFromBundle}=await import('../dist/index.js');
+  const source=collection({type:'Feature',id:'line',properties:{},geometry:{type:'LineString',coordinates:
+    Array.from({length:100},(_,i)=>[i,i*i])}});
+  const bundle=exportPartitions(buildQuadstream(source,{maxLevel:16}),{fileDepth:1});
+  let resolveFirst;
+  let attempts=0;
+  const fetcher=async(key,opts)=>{
+    attempts++;
+    if(attempts===1)await new Promise(r=>resolveFirst=r);
+    return fetchFromBundle(bundle)(key,opts);
+  };
+  const session=new QuadstreamSession(bundle.manifest),loader=new QuadstreamLoader(session,fetcher,{concurrency:1});
+  const stale=loader.loadLatest({level:15});
+  await Promise.resolve();
+  const current=loader.loadLatest({level:0});
+  resolveFirst();
+  await assert.rejects(stale,{name:'AbortError'});
+  const result=await current;
+  assert.equal(result.level,0);
+  assert.equal(result.complete,true);
+  assert.equal(session.loadedKeys.includes('base'),true);
+});
+
+test('aborted loader request rejects even when a custom fetcher ignores AbortSignal',async()=>{
+  const {QuadstreamLoader}=await import('../dist/index.js');
+  const source=collection({type:'Feature',id:'line',properties:{},geometry:{type:'LineString',coordinates:[[0,0],[10,5],[20,0]]}});
+  const bundle=exportPartitions(buildQuadstream(source,{maxLevel:10}),{fileDepth:1});
+  const session=new QuadstreamSession(bundle.manifest);
+  let pending;
+  const loader=new QuadstreamLoader(session,()=>new Promise(resolve=>{pending=resolve;}));
+  const ctl=new AbortController();
+  const work=loader.ensureLevel(9,{signal:ctl.signal});
+  ctl.abort();
+  await assert.rejects(work,{name:'AbortError'});
+  assert.deepEqual(session.loadedKeys,[]);
+  pending(bundle.partitions.values().next().value);
+  await Promise.resolve();
+  assert.deepEqual(session.loadedKeys,[]);
+});

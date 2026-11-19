@@ -14,7 +14,7 @@ The accompanying large PR introduces the following components as a **development
 | PR4: BLG hierarchy | Ordered min-Cartesian tree, iterative multiresolution traversal, invariant checker | Batch construction only; no online BLG mutations |
 | PR5: combined engine | Shared arc multiresolution reconstruction, validation and full-geometry fallback | Invalid simplifications fall back globally, harming compression and monotonicity |
 | PR6: viewport index | Deterministic packed static bounding-box index | No segment clipping or dynamic updates |
-| PR7: binary/partition foundation | Versioned manifest and partitions, length/checksum/ID checks, idempotent partial session | Not a full remote fetch/cancel/cache protocol; checksum is not authentication |
+| PR7: binary/partition foundation | Versioned manifest and partitions, length/checksum/ID checks, idempotent partial session, optional cancellable lazy loader with bounded concurrency and memory LRU | No HTTP-specific CDN/persistent caching or cryptographic authentication |
 
 ### Mandatory sign-off before PR8
 
