@@ -58,7 +58,7 @@ export function exportPartitions(dataset:QuadstreamDataset,{fileDepth=4}:{fileDe
     const bounds=boundsOf(records.map(r=>[r.x,r.y] as Position));
     partitions.set(key,bytes);
     infos.push({key,byteLength:bytes.byteLength,checksum:checksum(bytes),
-      vertexIds:records.map(r=>r.id),minLevel:Math.min(...records.map(r=>r.level)),bounds});
+      vertexIds:records.map(r=>r.id),minLevel:records.reduce((min,r)=>Math.min(min,r.level),Infinity),bounds});
   }
   const manifest:QuadstreamManifest={format:'quadstream',version:VERSION,
     maxLevel:dataset.quadtree.maxLevel,fileDepth,bounds:dataset.topology.bounds,

@@ -275,3 +275,32 @@ test('geometry rejects holes that cross their enclosing ring and preserves well-
   assert.throws(()=>buildQuadstream(collection({type:'Feature',id:'bad',properties:{},
     geometry:{type:'Polygon',coordinates:[outer,crossing]}})),/Invalid polygon/);
 });
+
+test('fallback is consistent across separate viewports and partial feature selections',()=>{
+  const source=collection(
+    {type:'Feature',id:'with-hole',properties:{},geometry:{type:'Polygon',coordinates:[
+      [[0,0],[20,0],[20,20],[0,20],[0,0]],
+      [[2,3],[2,5],[4,5],[4,3],[2,3]]
+    ]}},
+    rect('separate',100,0,110,10)
+  );
+  const ds=buildQuadstream(source,{maxLevel:12});
+  const global=ds.query({level:0});
+  const remoteOnly=ds.query({level:0,bounds:[99,-1,111,11]});
+  assert.equal(global.usedFallback,true,'invalid simplified hole triggers fallback');
+  assert.equal(remoteOnly.usedFallback,true,'separate viewport makes same global decision');
+  assert.equal(remoteOnly.geojson.features.length,1);
+  assert.deepEqual(remoteOnly.geojson.features[0],ds.query({level:11,bounds:[99,-1,111,11]}).geojson.features[0]);
+  const {manifest,partitions}=exportPartitions(ds,{fileDepth:3});
+  const session=new QuadstreamSession(manifest);
+  for(const [key,bytes] of partitions)session.load(key,bytes);
+  const streamed=session.query({level:0,bounds:[99,-1,111,11]});
+  assert.equal(streamed.complete,true);
+  assert.equal(streamed.usedFallback,true);
+  assert.deepEqual(streamed.geojson,remoteOnly.geojson);
+});
+
+test('degenerate zero-length input lines do not silently enter topology',()=>{
+  assert.throws(()=>buildTopology(collection({type:'Feature',properties:{},geometry:{
+    type:'LineString',coordinates:[[5,7],[5,7]]}})),/distinct coordinates/);
+});

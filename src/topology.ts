@@ -38,7 +38,8 @@ export function buildTopology(input: FeatureCollection): Topology {
         if(pts.length>=2 && pts[0]![0]===pts.at(-1)![0] && pts[0]![1]===pts.at(-1)![1]) pts.pop();
         if(new Set(pts.map(p=>JSON.stringify(p))).size<3 || !simpleClosedRing([...pts,pts[0]!]))
           throw new Error(`Invalid or self-intersecting source polygon ring in feature ${id}`);
-      } else if(pts.length<2) throw new Error(`Line requires >=2 coordinates in feature ${id}`);
+      } else if(pts.length<2 || new Set(pts.map(p=>JSON.stringify(p))).size<2)
+        throw new Error(`Line requires >=2 distinct coordinates in feature ${id}`);
       const ids=pts.map(vertexId);
       paths.push({ids,closed});
     }

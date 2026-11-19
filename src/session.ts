@@ -12,6 +12,7 @@ export class QuadstreamSession {
   private readonly tree;
   private readonly featureIndex;
   private readonly partitionByKey;
+  private readonly validityCache=new Map<number,boolean>();
   constructor(manifest:QuadstreamManifest){
     if(manifest?.format!=='quadstream'||manifest.version!==1||!Array.isArray(manifest.partitions))
       throw new Error('Unsupported Quadstream manifest');
@@ -53,31 +54,30 @@ export class QuadstreamSession {
     const missingKeys=this.missingKeys(level);
     if(options.bounds)assertBounds(options.bounds);
     const ids=options.bounds?this.featureIndex.query(options.bounds):this.manifest.features.map((_,i)=>i);
-    let omittedFeatures=0,selectedVertices=0,invalid=false;
-    let features=[] as FeatureCollection['features'];
+    const allLoaded=this.loaded.size===this.manifest.partitions.length;
+    let globallyInvalid=false;
+    if(allLoaded && options.validate!==false){
+      const cached=this.validityCache.get(level);
+      if(cached!==undefined)globallyInvalid=!cached;
+      else{
+        globallyInvalid=this.manifest.features.some(f=>!reconstructFeature(
+          f,this.manifest.arcs,this.tree,level,id=>{
+            const v=this.vertices.get(id);return v?[v.x,v.y] as const:undefined;
+          }).valid);
+        this.validityCache.set(level,!globallyInvalid);
+      }
+    }
+    let omittedFeatures=0,selectedVertices=0;
+    const features=[] as FeatureCollection['features'];
     for(const i of ids){
       const result=reconstructFeature(this.manifest.features[i]!,this.manifest.arcs,this.tree,
-        level,id=>{const v=this.vertices.get(id);return v?[v.x,v.y] as const:undefined;});
-      if(!result.valid || result.missing){omittedFeatures++;invalid=true;continue;}
+        globallyInvalid?Infinity:level,id=>{
+          const v=this.vertices.get(id);return v?[v.x,v.y] as const:undefined;
+        });
+      if(!result.valid || result.missing){omittedFeatures++;continue;}
       selectedVertices+=result.selectedVertices;features.push(result.feature);
     }
-    let usedFallback=false;
-    if(invalid && this.loaded.size===this.manifest.partitions.length && options.validate!==false){
-      // All original vertices are available; use global full-detail fallback.
-      // This avoids different simplifications of a shared border between neighbors.
-      features=ids.map(i=>reconstructFeature(this.manifest.features[i]!,this.manifest.arcs,this.tree,
-        Infinity,id=>{const v=this.vertices.get(id);return v?[v.x,v.y] as const:undefined;}).feature);
-      omittedFeatures=0;usedFallback=true;
-      selectedVertices=features.reduce((total,f)=>{
-        const g=f.geometry;
-        switch(g.type){
-          case 'Polygon':return total+g.coordinates.reduce((n,r)=>n+r.length,0);
-          case 'MultiPolygon':return total+g.coordinates.reduce((n,p)=>n+p.reduce((m,r)=>m+r.length,0),0);
-          case 'LineString':return total+g.coordinates.length;
-          case 'MultiLineString':return total+g.coordinates.reduce((n,r)=>n+r.length,0);
-        }
-      },0);
-    }
+    const usedFallback=globallyInvalid;
     return {geojson:{type:'FeatureCollection',features},complete:missingKeys.length===0&&omittedFeatures===0,
       missingKeys,level,omittedFeatures,selectedVertices,usedFallback};
   }
