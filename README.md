@@ -101,3 +101,7 @@ Bugs, failing geometry examples, and benchmarks against standard geographic tool
 ## Command line and geographic adapters
 
 The development CLI supports `build`, `validate`, `inspect`, `query`, and `benchmark`; the public adapters support planar GeoJSON and unquantized/quantized TopoJSON interchange. Build first, then run `node bin/quadstream.mjs --help`. See [CLI usage and format policy](docs/CLI.md) for static bundle staging, limitations, and exit codes.
+
+## Progressive map demo
+
+Run `npm run build` and `npm run demo:map` after installing dependencies. See [the progressive Canvas/MapLibre demo](docs/PROGRESSIVE-MAP.md) and [the proposed spherical D3 globe integration](plans/D3_ORTHOGRAPHIC_GLOBE.md).

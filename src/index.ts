@@ -14,3 +14,8 @@ export type * from './types.js';
 export { importGeoJSON, exportGeoJSON, importTopoJSON, exportTopoJSON } from './adapters.js';
 export type { TopoJSONTopology } from './adapters.js';
 export { validateManifest, MANIFEST_VERSION } from './manifest-schema.js';
+
+export { ProgressiveMap } from './progressive-map.js';
+export type { MapQuery, MapFrame, ProgressiveMapClient } from './progressive-map.js';
+export { attachMapLibre, mapLibreBounds } from './maplibre-adapter.js';
+export type { MapLibreLike, MapLibreAdapterOptions } from './maplibre-adapter.js';
