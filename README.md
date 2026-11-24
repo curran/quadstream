@@ -75,7 +75,7 @@ Viewport queries perform **feature-bounds filtering**, not line clipping. Geomet
 
 This combined modernization covers the foundation, topology, sparse quadtree, BLG, combined engine, viewport index and versioned progressive artifact scopes. It also includes deterministic fuzz/property-style tests, API declarations, a runnable example, and architecture documentation.
 
-It does **not** claim that progressive loading is network-integrated or that a production map renderer is available. The following are deliberately deferred: production-grade HTTP transport/CDN/persistent caching, robust high-scale topology validation, CLI and format adapters, MapLibre integration, visual demo, benchmarking against Tippecanoe, npm release.
+It does **not** claim that progressive loading is network-integrated or that a production map renderer is available. The following are deliberately deferred: production-grade HTTP transport/CDN/persistent caching, robust high-scale topology validation, MapLibre integration, visual demo, benchmarking against Tippecanoe, npm release.
 
 See [the architecture](docs/ARCHITECTURE.md), [historical provenance](docs/HISTORY.md), [contributing](CONTRIBUTING.md), and [project roadmap](plans/PROJECT_ROADMAP.md).
 
@@ -97,3 +97,7 @@ The historical README declares the GNU Lesser General Public License without a v
 ## Collaboration
 
 Bugs, failing geometry examples, and benchmarks against standard geographic tooling are especially welcome. Please attach a minimal GeoJSON fixture, describe the expected behavior and actual level, and avoid uploading confidential geographic data.
+
+## Command line and geographic adapters
+
+The development CLI supports `build`, `validate`, `inspect`, `query`, and `benchmark`; the public adapters support planar GeoJSON and unquantized/quantized TopoJSON interchange. Build first, then run `node bin/quadstream.mjs --help`. See [CLI usage and format policy](docs/CLI.md) for static bundle staging, limitations, and exit codes.
