@@ -11,3 +11,6 @@ export type { PartitionFetcher, LoaderOptions } from './loader.js';
 export { validPolygon, simpleClosedRing, segmentsIntersect, pointInRing,
   intersects, boundsOf } from './geometry.js';
 export type * from './types.js';
+export { importGeoJSON, exportGeoJSON, importTopoJSON, exportTopoJSON } from './adapters.js';
+export type { TopoJSONTopology } from './adapters.js';
+export { validateManifest, MANIFEST_VERSION } from './manifest-schema.js';

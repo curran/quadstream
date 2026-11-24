@@ -5,16 +5,31 @@
   "description": "Deterministic, topology-aware progressive geographic geometry engine",
   "type": "module",
   "sideEffects": false,
-  "engines": { "node": ">=20" },
-  "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  "engines": {
+    "node": ">=20"
   },
-  "files": ["dist", "README.md", "LICENSE-NOTICE.md"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE-NOTICE.md",
+    "bin"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test test/*.test.mjs",
     "check": "npm run typecheck && npm run test"
   },
-  "devDependencies": { "typescript": "^5.8.3" }
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  },
+  "bin": {
+    "quadstream": "./bin/quadstream.mjs"
+  }
 }
