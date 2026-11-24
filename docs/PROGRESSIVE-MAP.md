@@ -42,6 +42,8 @@ need appropriate CORS headers. Local development disables caching. Version
 static assets together and avoid caching mutable HTML indefinitely. Production
 HTTP partition fetching, ETags, offline caching and deployment are deferred.
 
+CI runs Node.js validation only (`npm run check`), with no browser installation or browser tests. For optional local browser validation:
+
 ```sh
 npm run check
 npx playwright install chromium
@@ -51,7 +53,7 @@ npm run test:browser
 Browser tests exercise keyboard controls, deterministic Canvas pixel
 round-trips, simulated latency, stale requests and MapLibre source updates.
 The browser test is not a cross-platform golden-image suite; establish reviewed
-goldens on a pinned environment after CI runs. Accessibility checks cover
+goldens in a pinned local environment. Accessibility checks cover
 labels, keyboard controls and live status, not a comprehensive audit.
 
 See [the D3 orthographic follow-up](../plans/D3_ORTHOGRAPHIC_GLOBE.md).
