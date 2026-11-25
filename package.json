@@ -1,6 +1,6 @@
 {
   "name": "@quadstream/core",
-  "version": "0.0.0-development",
+  "version": "0.1.0",
   "private": true,
   "description": "Deterministic, topology-aware progressive geographic geometry engine",
   "type": "module",
@@ -17,7 +17,9 @@
   "files": [
     "dist",
     "README.md",
+    "LICENSE",
     "LICENSE-NOTICE.md",
+    "CHANGELOG.md",
     "bin"
   ],
   "scripts": {
@@ -28,7 +30,9 @@
     "demo:map": "node examples/progressive/server.mjs",
     "test:browser": "npm run build && playwright test",
     "demo:globe": "node examples/progressive/server.mjs --globe",
-    "test:globe:browser": "npm run build && playwright test globe.spec.mjs"
+    "test:globe:browser": "npm run build && playwright test globe.spec.mjs",
+    "prepack": "npm run build",
+    "test:package": "node scripts/test-package.mjs"
   },
   "devDependencies": {
     "typescript": "^5.8.3",
@@ -40,5 +44,29 @@
   },
   "bin": {
     "quadstream": "./bin/quadstream.mjs"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/curran/quadstream.git"
+  },
+  "homepage": "https://github.com/curran/quadstream#readme",
+  "bugs": {
+    "url": "https://github.com/curran/quadstream/issues"
+  },
+  "keywords": [
+    "geometry",
+    "geojson",
+    "topojson",
+    "simplification",
+    "topology",
+    "quadtree",
+    "gis",
+    "progressive",
+    "d3",
+    "maplibre"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }

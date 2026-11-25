@@ -18,7 +18,7 @@ The accompanying large PR introduces the following components as a **development
 
 ### Mandatory sign-off before PR8
 
-Run a fresh checkout `npm install`, `npm run check` and the demo on supported Node versions. Review missing lockfile/dependency pinning. Resolve the root licensing/SPDX terms and all historical third-party notices; only then consider a public npm release. Confirm algorithm behavior with the UDCVis Vietnam, Africa and Florida regression examples and capture realistic country-boundary benchmarks before claiming production-ready topology preservation. Record reproducible commands and actual measurements.
+Run a fresh checkout `npm install`, `npm run check` and the demo on supported Node versions. Review missing lockfile/dependency pinning. The modern MIT license decision is recorded; confirm ownership/provenance and preserve all historical third-party notices before a public npm release. Confirm algorithm behavior with the UDCVis Vietnam, Africa and Florida regression examples and capture realistic country-boundary benchmarks before claiming production-ready topology preservation. Record reproducible commands and actual measurements.
 
 ## Follow-on standalone PRs
 
@@ -46,9 +46,17 @@ Run a fresh checkout `npm install`, `npm run check` and the demo on supported No
 
 **Acceptance:** panning/zooming while partitions arrive never silently displays invalid topology or allows older viewport responses to replace the current view; demo runs without VizHub services.
 
-### PR9b — Spherical D3 orthographic globe (proposed)
+### PR9b — Spherical D3 orthographic globe (PR9b-1 and PR9b-2 merged)
 
 PR9b-1 established the opt-in spherical reference engine and cube-face priorities. PR9b-2 uses the maintainer's simpler MIT-licensed VizHub pointer-driven globe, preserving Canvas rotation and pinch behavior while removing all data overlays. It adds an in-memory worker, real atlas comparison, conservative fallback, and Node 26/Chromium/WebKit regression tests. See [globe documentation](../docs/GLOBE.md). PR9b-3 remains responsible for scalable spherical validation, measured screen-space error, conservative visibility, and versioned progressive artifacts; physical-device acceptance and performance benchmarking remain outstanding.
+
+### Release preparation — README, MIT scope and npm package
+
+The maintainer selected MIT for the modern implementation; historical licensing
+is unchanged. Prepare version 0.1.0, npm metadata, consumer docs and CI
+clean-install checks on Node 20 and 26. Keep `private: true` until provenance,
+package scope/version availability, reproducible install and benchmark/release
+sign-off are confirmed. This PR does not publish to npm or change algorithms.
 
 ### PR10 — Algorithm hardening, production benchmarks and v0.1.0 release
 
@@ -59,7 +67,7 @@ PR9b-1 established the opt-in spherical reference engine and cube-face prioritie
 - Design and verify safe simplification refinements rather than whole-view fallback; ensure adjacency, ring containment and intersection invariants across zoom levels.
 - Measure simplification quality and compare against Tippecanoe, TopoJSON simplification and unsimplified GeoJSON at 10k / 100k / 1M / 10M vertices, using measured memory, time, bytes and topology validity.
 - Audit malformed manifest and binary inputs; add crypto integrity for remote transport, quotas, OOM prevention, fuzzing and corpus coverage.
-- Complete license review, lockfile, npm provenance/release verification, package API compatibility policy, changelog, docs website and benchmark publication.
+- Complete provenance review, lockfile, npm provenance/release verification, package API compatibility policy, changelog, docs website and benchmark publication.
 
 **Acceptance:** public v0.1.0 is only released after signed-off license, reproducible installs, all relevant tests passing and published benchmark results. State limitations prominently if reference performance targets are not met.
 

@@ -48,8 +48,9 @@ selections are nested, but validated output need not be monotonic after a
 fallback. No geographic viewport culling is permitted yet; topology bounds
 are diagnostic only. The spherical dataset intentionally does not implement
 the planar partition/session interface. A versioned spherical artifact format,
-independent D3/robust spherical predicate comparison, real atlas benchmarks,
-globe integration, and visibility optimization remain separate work. Do not
+robust spherical predicate comparison, production-scale atlas benchmarks,
+and visibility optimization remain separate work. The D3 globe demo and sampled
+D3 reference checks are implemented (see [GLOBE.md](GLOBE.md)). Do not
 serialize spherical results through the planar v1 partition API.
 
 The Node test suite includes exact seam and pole aliases, six faces, boundary

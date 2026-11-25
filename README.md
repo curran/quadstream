@@ -2,114 +2,230 @@
 
 **Progressive, topology-aware, multiresolution geometry for the web.**
 
-Quadstream revives the 2010–2012 research on spatially distributed vertex priorities, sparse quadtree subdivision, and Binary Line Generalization (BLG) trees. It turns the historical ideas into a small, TypeScript-first library for preparing geographic shapes at multiple levels of detail. No server, map framework, or VizHub account is required.
+Quadstream prepares geographic shapes at multiple levels of detail while
+sharing exactly matching boundaries. Build once, query a simpler representation
+for a map or globe, or serialize planar geometry into independently loadable
+binary partitions. The TypeScript-first core is ESM with no runtime dependencies,
+and requires no VizHub account, map framework or server.
 
-> **Development preview, not published.** This modernization is intentionally `private: true` and remains pre-release while licensing, large-dataset performance, geographic edge cases, and progressive streaming behavior are reviewed. Do not deploy it for safety-critical geometry or assume it produces cartographically optimal simplifications.
+> **Experimental 0.1.0 release preparation.** The package is not yet published
+> and remains private pending release sign-off. Reference validation can be
+> expensive; do not use it for safety-critical geometry.
 
-## Why Quadstream?
+## Features
 
-A conventional simplification algorithm often outputs one static polygon at one tolerance. Quadstream instead assigns every distinct source vertex an importance level in a **sparse quadtree**, then reconstructs each shape in source order using **BLG-style ordered priority trees**. Shared boundary arcs are indexed only once so adjoining polygons can reuse the same simplified coordinates.
+- Deterministic spatial vertex priorities and BLG-style ordered reconstruction.
+- Exact shared arcs, reversible references and explicit validity fallback.
+- Planar viewport queries, GeoJSON/TopoJSON adapters and versioned binary partitions.
+- Transport-independent progressive loading with cancellation and a bounded raw-byte cache.
+- Experimental spherical geometry for D3 globes, including seam and pole aliases.
+- Standalone CLI and local Canvas, MapLibre and D3 globe demos.
 
-| Component | Responsibility |
-| --- | --- |
-| Exact-coordinate topology | Deduplicate shared vertices and identify shared arcs and junctions |
-| Sparse quadtree | Assign reproducible spatial importance levels to all unique vertices |
-| BLG hierarchy | Restore original vertex ordering at any supported detail level |
-| Packed spatial index | Select candidate features intersecting an axis-aligned viewport |
-| Partitioned binary geometry | Serialize deterministic, checksummed vertex batches |
-| Progressive session | Validate and ingest partitions, then query available geometry |
+## Install
 
-## Quick start
-
-Requires Node.js 20+ for the package and an installed TypeScript compiler for building from source. The repository uses `npm`; after installing development dependencies:
+Once the public package is released (Node.js 20+, ESM):
 
 ```sh
-npm install
-npm run check
-node examples/hello.mjs
+npm install @quadstream/core
 ```
 
-`npm run check` runs the strict TypeScript build and Node's built-in test runner. The core has no runtime dependencies; the globe regression tests use pinned demo development dependencies.
+Until then, use a checkout and build the package:
+
+```sh
+git clone https://github.com/curran/quadstream.git
+cd quadstream
+npm install
+npm run build
+node examples/hello.mjs
+npm pack
+```
+
+The generated tarball can be installed into a separate project. The following
+examples use the package's public import path. From a checkout, examples in
+`examples/` instead import `../dist/index.js`.
+
+## Quick start: planar geometry
 
 ```js
-import { buildQuadstream, exportPartitions, QuadstreamSession, QuadstreamLoader, fetchFromBundle } from '@quadstream/core';
+import { buildQuadstream } from '@quadstream/core';
 
 const source = {
   type: 'FeatureCollection',
   features: [{
-    type: 'Feature', id: 'square', properties: { value: 42 },
-    geometry: { type: 'Polygon', coordinates: [[
-      [0, 0], [10, 0], [10, 10], [0, 10], [0, 0]
-    ]] }
+    type: 'Feature',
+    id: 'square',
+    properties: { value: 42 },
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]]
+    }
   }]
 };
 
 const dataset = buildQuadstream(source, { maxLevel: 12 });
-const { geojson, usedFallback } = dataset.query({ level: 4, bounds: [0, 0, 10, 10] });
-
-const { manifest, partitions } = exportPartitions(dataset, { fileDepth: 3 });
-const session = new QuadstreamSession(manifest);
-for (const [key, bytes] of partitions) session.load(key, bytes);
-const recovered = session.query({ level: 11 });
-
-// A transport-agnostic lazy loader is also available for remote partitions:
-const lazySession = new QuadstreamSession(manifest);
-const loader = new QuadstreamLoader(lazySession, fetchFromBundle({ manifest, partitions }),
-  { concurrency: 4, cacheBytes: 1024 * 1024 });
-await loader.loadLatest({ level: 11 });
+const result = dataset.query({ level: 4, bounds: [0, 0, 10, 10] });
+console.log(result.geojson, result.usedFallback);
 ```
 
-**Note:** During local development, run `npm run build` and use `../dist/index.js` from the example rather than a published package name; the public import above illustrates the intended package API.
+Detail levels run from 0 (coarsest) to `maxLevel - 1` (finest).
+The returned feature collection can be rendered with your preferred renderer.
+TypeScript users can annotate the source with the exported `FeatureCollection`
+type.
 
-## Geometry support and semantics
+The planar engine interprets coordinates as Cartesian numbers. Project or
+split dateline-crossing geography upstream; use the spherical API for
+great-circle globe geometry.
 
-Supported: GeoJSON `Polygon`, `MultiPolygon`, `LineString`, and `MultiLineString` features with finite planar `[x, y]` coordinates. Feature properties and IDs are retained. Polygons are returned with closed rings and may have a cyclically rotated starting point.
+## Progressive planar loading
 
-Coordinates are **planar**, not automatically projected; caller-provided longitude/latitude is interpreted numerically. The current implementation does **not** wrap the antimeridian, transform coordinate reference systems, snap approximately matching vertices, infer shared borders from differently digitized edges, or support `Point`/`GeometryCollection`/3D coordinates. Invalid input rings are rejected. Polygon holes are validated for containment. Geometry validation uses an O(n²) reference implementation and is not yet scalable to very large rings.
+```js
+import {
+  exportPartitions, QuadstreamSession, QuadstreamLoader, fetchFromBundle
+} from '@quadstream/core';
 
-A detail level is an integer from `0` (coarsest) through `maxLevel - 1` (finest). More detailed levels form nested vertex subsets *in the BLG hierarchy*. A coarse simplification can be invalid even if the original is valid; the synchronous dataset query makes a **dataset-wide validity decision** and conservatively falls back to **full original geometry for every selected feature, regardless of viewport** so shared boundaries remain consistent. The level-wise result is therefore **not guaranteed to be monotonic when fallback occurs**. The progressive session reports incomplete or omitted features until required partitions arrive and uses the same global fallback when all partitions are available.
+const bundle = exportPartitions(dataset, { fileDepth: 3 });
+const session = new QuadstreamSession(bundle.manifest);
+const loader = new QuadstreamLoader(session, fetchFromBundle(bundle), {
+  concurrency: 4,
+  cacheBytes: 1024 * 1024
+});
 
-Viewport queries perform **feature-bounds filtering**, not line clipping. Geometry can extend beyond the requested viewport. The lazy loader supports an injected async fetcher, AbortSignal cancellation, bounded concurrency, a raw-byte LRU cache, and newest-view suppression. It does not provide an HTTP client or persistent cache. The partition planner conservatively requests every partition with potentially relevant priority, even when its bounding box is outside the viewport, because a long line may cross the view without any vertices inside it.
+const frame = await loader.loadLatest({ level: 4 });
+console.log(frame.geojson, frame.complete, frame.usedFallback);
+```
 
-## What is implemented in this revival?
+Replace `fetchFromBundle` with an async function accepting a partition key and
+`{ signal }` to retrieve bytes from your own transport. The session validates
+partition checksums, sizes and records before ingestion. A new latest-view
+request cancels the preceding one. Partial session queries report incomplete
+or omitted features until required partitions arrive.
 
-This combined modernization covers the foundation, topology, sparse quadtree, BLG, combined engine, viewport index and versioned progressive artifact scopes. It also includes deterministic fuzz/property-style tests, API declarations, a runnable example, and architecture documentation.
+The raw-byte cache does not evict parsed session vertices. The planner is
+conservative: it may request partitions outside the viewport to reconstruct
+segments that cross it. No production HTTP/CDN client is bundled.
 
-It does **not** claim that progressive loading is network-integrated or that a production map renderer is available. The following are deliberately deferred: production-grade HTTP transport/CDN/persistent caching, robust high-scale topology validation, production map deployment, benchmarking against Tippecanoe, npm release.
+## Spherical geometry and D3
 
-See [the architecture](docs/ARCHITECTURE.md), [historical provenance](docs/HISTORY.md), [contributing](CONTRIBUTING.md), and [project roadmap](plans/PROJECT_ROADMAP.md).
+Use the distinct spherical engine for longitude/latitude coordinates in
+degrees with D3 spherical winding (clockwise small polygon interiors).
+The following example assumes a TopoJSON atlas is already loaded:
 
-## Design principles
+```js
+import { buildSphericalQuadstream, importSphericalTopoJSON } from '@quadstream/core';
 
-1. **Accuracy before throughput.** Never silently return an invalid simplified polygon as if valid.
-2. **Deterministic builds.** No stochastic vertex priorities or network-dependent results.
-3. **Shared topology.** Exact shared boundaries use one coordinate sequence with reversible references.
-4. **Transport-independent core.** No coupling to React, MapLibre, cloud hosting, or VizHub.
-5. **Unambiguous status.** Partial results and fallback are explicit return fields.
-6. **Reproducibility.** Fixed fixtures, seeded fuzz tests, and recorded performance baselines.
+const countries = importSphericalTopoJSON(atlas, 'countries');
+const globe = buildSphericalQuadstream(countries, { maxLevel: 20 });
+const { geojson, usedFallback } = globe.query({ level: 8 });
+// Supply geojson to your D3 geoPath renderer.
+```
 
-## History and license status
+Spherical queries reconstruct global geometry in memory. They do not support
+planar viewport bounds, v1 partition serialization or network streaming.
+They may reject inputs that cannot be validated in the reference hemisphere
+chart. See [spherical semantics](https://github.com/curran/quadstream/blob/master/docs/SPHERICAL.md).
 
-The original standalone repository dates to December 2010 and includes Java, Dojo, Processing.js, and experimental R-tree/BLG code. The later 2012 UDCVis work includes sparse-quadtree and progressive geometry prototypes. The old implementation is preserved in this repository's existing paths; it is **not** silently deleted or rewritten. [HISTORY.md](docs/HISTORY.md) documents source references.
+## Interactive demos
 
-The historical README declares the GNU Lesser General Public License without a version. This modernization does **not** presume that declaration authorizes relicensing and is not published on npm until licensing and bundled third-party provenance are resolved. See [LICENSE-NOTICE.md](LICENSE-NOTICE.md). A root SPDX identifier and license file should be selected only after that review.
+From a checkout, install dependencies and build, then run either command:
 
-## Collaboration
+| Demo | Command | What it demonstrates |
+| --- | --- | --- |
+| Progressive map | `npm run demo:map` | Canvas/MapLibre, detail levels, shared arcs, simulated partition latency |
+| Orthographic globe | `npm run demo:globe` | D3 Canvas, real 110m/50m atlas inputs, pinch zoom, rotation, worker-based LOD and original/reconstructed comparison |
 
-Bugs, failing geometry examples, and benchmarks against standard geographic tooling are especially welcome. Please attach a minimal GeoJSON fixture, describe the expected behavior and actual level, and avoid uploading confidential geographic data.
+Open the local URL printed by the server (normally http://127.0.0.1:4173/).
+The demos are not included in the npm artifact. The globe downloads the full
+atlas up front; its LOD reduction is not a bandwidth-saving streaming protocol.
+See [map demo](https://github.com/curran/quadstream/blob/master/docs/PROGRESSIVE-MAP.md)
+and [globe demo](https://github.com/curran/quadstream/blob/master/docs/GLOBE.md).
 
-## Command line and geographic adapters
+## CLI
 
-The development CLI supports `build`, `validate`, `inspect`, `query`, and `benchmark`; the public adapters support planar GeoJSON and unquantized/quantized TopoJSON interchange. Build first, then run `node bin/quadstream.mjs --help`. See [CLI usage and format policy](docs/CLI.md) for static bundle staging, limitations, and exit codes.
+After installing the released package, run its executable with
+`npx --no-install quadstream` (or use `node bin/quadstream.mjs` from a built checkout):
 
-## Progressive map demo
+```sh
+npx --no-install quadstream build countries.geojson countries.bundle --max-level 20 --file-depth 4
+npx --no-install quadstream inspect countries.bundle
+npx --no-install quadstream validate countries.bundle
+npx --no-install quadstream query countries.bundle --level 10 --output simplified.geojson
+npx --no-install quadstream benchmark countries.geojson --iterations 3
+```
 
-Run `npm run build` and `npm run demo:map` after installing dependencies. See [the progressive Canvas/MapLibre demo](docs/PROGRESSIVE-MAP.md) and [the proposed spherical D3 globe integration](plans/D3_ORTHOGRAPHIC_GLOBE.md).
+The CLI currently operates on planar coordinates. Query output and build
+directories must not already exist. See [CLI and format policy](https://github.com/curran/quadstream/blob/master/docs/CLI.md)
+for input restrictions, bounds, exit codes and static staging.
 
-## Experimental spherical geometry
+## Public API guide
 
-The separate `buildSphericalQuadstream` and `importSphericalTopoJSON` APIs provide a geographic, in-memory reference path for D3 globes. See [spherical coordinate semantics and limitations](docs/SPHERICAL.md). All existing planar APIs and v1 partitions are unchanged.
+| API | Purpose |
+| --- | --- |
+| `buildQuadstream`, `QuadstreamDataset` | Build planar multiresolution geometry and query by detail/bounds |
+| `buildSphericalQuadstream`, `SphericalQuadstreamDataset`, `importSphericalTopoJSON` | In-memory D3-style geographic reconstruction |
+| `importGeoJSON`, `exportGeoJSON`, `importTopoJSON`, `exportTopoJSON` | Planar geographic interchange |
+| `exportPartitions`, `validateManifest`, `MANIFEST_VERSION` | Versioned planar artifacts |
+| `QuadstreamSession`, `QuadstreamLoader`, `fetchFromBundle` | Partial reconstruction and injected async delivery |
+| `ProgressiveMap`, `attachMapLibre`, `mapLibreBounds` | Renderer-independent orchestration and MapLibre integration |
+| `buildTopology`, `buildSparseQuadtree`, `buildBlgTree`, `createSpatialIndex` | Lower-level algorithm building blocks |
 
-## Orthographic globe demo
+See the [export list](https://github.com/curran/quadstream/blob/master/src/index.ts)
+and included TypeScript declarations for complete signatures and utilities.
 
-Run `npm run build` and `npm run demo:globe`. This geometry-only D3 Canvas demo includes touch rotation and repeated pinch zoom, real atlas inputs, and Quadstream/original comparison. See [globe controls, provenance and limitations](docs/GLOBE.md).
+## How it works
+
+Quadstream deduplicates exact shared vertices and arcs, assigns deterministic
+spatial importance using a sparse hierarchy, and reconstructs source order
+through Binary Line Generalization (BLG)-style priority trees. Planar geometry
+uses a sparse quadtree, while spherical geometry uses hierarchical occupancy
+on six cube faces. A packed planar spatial index selects viewport candidates.
+The versioned planar binary format stores checksummed vertex batches separately
+from topology metadata.
+
+## Geometry semantics and limitations
+
+- Supported shapes: Polygon, MultiPolygon, LineString and MultiLineString.
+  No points, nested geometry collections, 3D coordinates or nonfinite positions.
+- Only exact coordinate matches establish shared borders; no approximate
+  snapping or differently digitized boundary reconciliation.
+- Planar bounds filter whole features; they do not clip geometry. Planar IDs
+  are normalized to strings, and null properties become empty objects.
+- Full-detail reconstruction retains coordinates and order subject to documented
+  normalization and cyclic ring starts. Coarse BLG subsets are nested, but
+  validated output may not be monotonic when a fallback occurs.
+- By default, invalid simplified geometry triggers a global full-detail
+  fallback, not independent per-feature simplification. Partial results are
+  explicit; validation does not prove global cross-feature topology.
+- Reference polygon validity checks are quadratic; large-scale performance,
+  measured screen-space error, robust global spherical predicates and
+  production resource hardening remain future work.
+- Binary checksums detect accidental corruption, not malicious changes.
+
+See the [architecture](https://github.com/curran/quadstream/blob/master/docs/ARCHITECTURE.md)
+and [roadmap](https://github.com/curran/quadstream/blob/master/plans/PROJECT_ROADMAP.md)
+for implementation details and planned work.
+
+## Development
+
+```sh
+npm install
+npm run check
+npm run test:package
+npx playwright install --with-deps chromium webkit
+npm run test:globe:browser
+```
+
+CI retains Node 26 and Chromium/WebKit globe regression tests and adds
+packed-package verification for Node 20 and 26. The real-atlas globe tests
+compare original and full-resolution reconstruction across multiple views and
+zoom levels. Physical mobile-device validation and production benchmarks remain
+outstanding. See [contributing](https://github.com/curran/quadstream/blob/master/CONTRIBUTING.md).
+
+## History and license
+
+Quadstream revives research and prototypes from 2010–2012 in a self-contained
+modern TypeScript implementation. See [historical provenance](https://github.com/curran/quadstream/blob/master/docs/HISTORY.md).
+
+The modern implementation is MIT-licensed. Historical Java/browser code
+retains its existing license terms, including the original LGPL declaration.
+See [LICENSE](https://github.com/curran/quadstream/blob/master/LICENSE) and
+[LICENSE-NOTICE.md](https://github.com/curran/quadstream/blob/master/LICENSE-NOTICE.md).

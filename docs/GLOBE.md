@@ -78,9 +78,9 @@ LOD and stale responses; spherical fixtures and a real local 110m atlas
 exercise D3 winding, area, containment, projected clipping, shared boundaries,
 full reconstruction, and meaningful reduction. Browser scenarios cover mouse,
 wheel, keyboard, repeated pinch, drag-to-pinch-to-drag, third pointers,
-cancellation, resizing, original-vs-full pixel comparison, real-atlas loading,
+cancellation, resizing, original-vs-full pixel comparison (fixture and 110m real atlas at four orientations and two zoom levels), real-atlas loading,
 and local-file recovery. Chromium has CDP touch injection in addition to
 synthetic PointerEvents; WebKit exercises the pointer events. These are not
-physical iOS/Android hardware tests. CI uses Node 26 only. Before declaring
+physical iOS/Android hardware tests. Globe browser CI uses Node 26. Before declaring
 mobile parity, manually verify on iPhone Safari and Android Chrome, including
 consecutive pinches, interruptions, orientation changes and rotation at zoom.

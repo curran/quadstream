@@ -22,7 +22,17 @@ jobs:
       - run: npm run check
       - run: node examples/hello.mjs
       - run: node bin/quadstream.mjs --help
+      - run: npm run test:package
       - name: Verify bundled browser executables
         run: |
           node --input-type=module -e 'import { chromium, webkit } from "@playwright/test"; import { accessSync, constants } from "node:fs"; for (const browser of [chromium, webkit]) { const path = browser.executablePath(); accessSync(path, constants.X_OK); console.log(path); }'
       - run: npm run test:globe:browser
+  package-node20:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --ignore-scripts
+      - run: npm run test:package
