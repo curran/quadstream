@@ -65,13 +65,13 @@ async function init(){
   original=source.type==='Topology'?globalThis.topojson.feature(source,source.objects.countries):source;
   if(original?.type!=='FeatureCollection'||!original.features.length||original.features.some(f=>!['Polygon','MultiPolygon'].includes(f.geometry?.type))){original=undefined;throw new Error('Expected polygon countries');}
   schedule();setStatus('Preparing spherical geometry…','loading');
-  const current=new GlobeWorkerClient(new Worker(new URL('./worker.mjs',import.meta.url)));client=current;
+  const current=new GlobeWorkerClient(new Worker(new URL('./worker.mjs',import.meta.url),{type:'module'}));client=current;
   const result=await current.init(original);if(id!==epoch||disposed)return;
   original=result.original;ready=true;
   latest=createLatestGeometry({
    request:l=>{requests++;schedule();return current.query(l);},
-   onFrame:f=>{frame=f;setStatus('Ready · LOD '+f.level+' · '+f.vertices+' / '+f.sourceVertices+' vertices'+(f.fallbackGroups||f.refinedGroups?' · conservative fallback/refinement':''),'ready');schedule();},
-   onError:error
+   onFrame:f=>{frame=f;if($('mode').value==='quadstream')setStatus('Ready · LOD '+f.level+' · '+f.vertices+' / '+f.sourceVertices+' vertices'+(f.fallbackGroups||f.refinedGroups?' · conservative fallback/refinement':''),'ready');schedule();},
+   onError:e=>{if($('mode').value==='quadstream')error(e);}
   });
   if($('mode').value==='original')setStatus('Original geometry','ready');else requestLevel();
   schedule();
