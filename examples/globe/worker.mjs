@@ -1,11 +1,12 @@
-// Classic worker loads pinned local demo dependencies, not CDNs.
-importScripts('../../node_modules/d3/dist/d3.min.js','../../node_modules/topojson-client/dist/topojson-client.min.js');
-let engine;const ready=import('./geometry.mjs');
+// Module worker loads pinned local UMD demo bundles via side-effect imports.
+import '../../node_modules/d3/dist/d3.min.js';
+import '../../node_modules/topojson-client/dist/topojson-client.min.js';
+import {createGlobeGeometry,decodeCountries} from './geometry.mjs';
+let engine;
 let chain=Promise.resolve();
 self.onmessage=({data:m})=>{
  chain=chain.then(async()=>{
   try{
-   const {createGlobeGeometry,decodeCountries}=await ready;
    if(m.type==='init'){
     const original=decodeCountries(m.source,self.topojson);
     engine=createGlobeGeometry(original,self.d3);
