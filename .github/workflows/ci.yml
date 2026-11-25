@@ -15,3 +15,5 @@ jobs:
       - run: npm run check
       - run: node examples/hello.mjs
       - run: node bin/quadstream.mjs --help
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:globe:browser
