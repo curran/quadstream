@@ -1,7 +1,17 @@
 import {test,expect} from '@playwright/test';
 const url='/examples/globe/index.html?fixture=1';
 const globe=page=>page.locator('#globe');
-const ready=async page=>{await expect(page.locator('#status')).toHaveAttribute('data-phase','ready',{timeout:60000});};
+// The status changes when the worker responds, before the next animation
+// frame publishes the canvas diagnostics. Wait for the actual requested frame.
+const ready=async page=>{
+ await page.waitForFunction(()=>{
+  const el=document.querySelector('#globe'),d=el.dataset;
+  return document.querySelector('#status').dataset.phase==='ready'
+   && d.mode==='quadstream' && d.renderedLevel===document.querySelector('#level').value
+   && !!d.rotation && Number(d.scale)>0 && Number(d.requests)>0
+   && Number(d.sourceVertices)>0 && Number(d.vertices)>0;
+ },null,{timeout:60000});
+};
 const state=async page=>globe(page).evaluate(el=>({rotation:JSON.parse(el.dataset.rotation),scale:Number(el.dataset.scale),initial:Number(el.dataset.initialScale),requests:Number(el.dataset.requests),interacting:el.dataset.interacting==='true',level:Number(el.dataset.renderedLevel),vertices:Number(el.dataset.vertices),source:Number(el.dataset.sourceVertices)}));
 const near=(actual,expected)=>expect(Math.abs(actual-expected)).toBeLessThan(.001);
 async function pointer(page,type,id,x,y,pointerType='touch'){
@@ -62,16 +72,18 @@ test('resize preserves relative zoom and rotation',async({page})=>{
 test('manual levels reduce geometry and return full detail; original toggle draws equivalent pixels',async({page})=>{
  await page.goto(url);await ready(page);await manual(page,0);const a=await state(page);expect(a.vertices).toBeLessThan(a.source);
  await manual(page,19);const b=await state(page);expect(b.vertices).toBe(b.source);
- const pixels=()=>globe(page).evaluate(el=>Array.from(el.getContext('2d').getImageData(0,0,el.width,el.height).data));
  await page.locator('#mode').selectOption('original');await expect(globe(page)).toHaveAttribute('data-mode','original');
- // Compare same-view pixels in the browser to avoid serializing a large frame.
- const original=await globe(page).evaluate(el=>el.toDataURL());
- await page.locator('#mode').selectOption('quadstream');await expect(globe(page)).toHaveAttribute('data-mode','quadstream');await ready(page);
- const difference=await globe(page).evaluate(async(el,src)=>{
-  const image=new Image();image.src=src;await image.decode();const c=document.createElement('canvas');c.width=el.width;c.height=el.height;
-  const ctx=c.getContext('2d');ctx.drawImage(image,0,0);const a=ctx.getImageData(0,0,c.width,c.height).data,b=el.getContext('2d').getImageData(0,0,c.width,c.height).data;
-  let n=0;for(let i=0;i<a.length;i+=4)if(Math.max(...[0,1,2,3].map(j=>Math.abs(a[i+j]-b[i+j])))>12)n++;return n/(c.width*c.height);
- },original);expect(difference).toBeLessThan(.005);
+ // Keep the original raw RGBA buffer in the browser. PNG encoding/decoding
+ // and drawing onto another canvas can introduce color/alpha rounding.
+ const original=await globe(page).evaluateHandle(el=>({width:el.width,height:el.height,data:el.getContext('2d').getImageData(0,0,el.width,el.height).data}));
+ try{
+  await page.locator('#mode').selectOption('quadstream');await ready(page);
+  const difference=await globe(page).evaluate((el,snapshot)=>{
+   if(el.width!==snapshot.width||el.height!==snapshot.height)throw new Error('Canvas size changed during comparison');
+   const a=snapshot.data,b=el.getContext('2d').getImageData(0,0,el.width,el.height).data;
+   let n=0;for(let i=0;i<a.length;i+=4)if(Math.max(...[0,1,2,3].map(j=>Math.abs(a[i+j]-b[i+j])))>12)n++;return n/(el.width*el.height);
+  },original);expect(difference).toBeLessThan(.005);
+ }finally{await original.dispose();}
 });
 test('default real atlas loads, supports reduction and full detail',async({page})=>{
  await page.goto('/examples/globe/index.html');await ready(page);await manual(page,4);const a=await state(page);
