@@ -105,3 +105,7 @@ The development CLI supports `build`, `validate`, `inspect`, `query`, and `bench
 ## Progressive map demo
 
 Run `npm run build` and `npm run demo:map` after installing dependencies. See [the progressive Canvas/MapLibre demo](docs/PROGRESSIVE-MAP.md) and [the proposed spherical D3 globe integration](plans/D3_ORTHOGRAPHIC_GLOBE.md).
+
+## Experimental spherical geometry
+
+The separate `buildSphericalQuadstream` and `importSphericalTopoJSON` APIs provide a geographic, in-memory reference path for D3 globes. See [spherical coordinate semantics and limitations](docs/SPHERICAL.md). All existing planar APIs and v1 partitions are unchanged.

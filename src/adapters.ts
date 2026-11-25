@@ -69,6 +69,11 @@ export interface TopoJSONTopology {
 }
 /** Decode signed zero-based TopoJSON arcs; transformed arcs are delta-encoded per arc. */
 export function importTopoJSON(input: unknown): FeatureCollection {
+  const decoded=decodeTopoJSON(input);
+  return collection(decoded.features);
+}
+/** Internal decoder: caller must apply the appropriate coordinate validation. */
+export function decodeTopoJSON(input:unknown,objectName?:string,normalize?:(p:Position)=>Position):FeatureCollection {
   const root = obj(input,'TopoJSON');
   if (root.type !== 'Topology' || 'crs' in root) throw new Error('Expected Topology without explicit CRS');
   let scale: Position | undefined, translate: Position | undefined;
@@ -80,11 +85,11 @@ export function importTopoJSON(input: unknown): FeatureCollection {
     let x=0,y=0;
     const points=arr(raw,'arc').map(v=>{
       const p=pos(v);
-      if (!scale || !translate) return p;
+      if (!scale || !translate) return normalize?normalize(p):p;
       if (!p.every(Number.isSafeInteger)) throw new Error('Expected integer transformed delta');
       x+=p[0];y+=p[1];
       if (!Number.isSafeInteger(x)||!Number.isSafeInteger(y)) throw new Error('Unsafe accumulated delta');
-      return pos([x*scale[0]+translate[0],y*scale[1]+translate[1]]);
+      const decoded=pos([x*scale[0]+translate[0],y*scale[1]+translate[1]]); return normalize?normalize(decoded):decoded;
     });
     if(points.length<2) throw new Error('Arc requires at least two positions');
     return points;
@@ -112,12 +117,14 @@ export function importTopoJSON(input: unknown): FeatureCollection {
     }
   }
   const features: Feature[]=[];
-  for(const value of Object.values(obj(root.objects,'objects'))) {
+  const objects=obj(root.objects,'objects');
+  if(objectName!==undefined&&!Object.prototype.hasOwnProperty.call(objects,objectName))throw new Error('Unknown TopoJSON object: '+objectName);
+  for(const value of objectName===undefined?Object.values(objects):[objects[objectName]]) {
     const g=obj(value,'named object');
     if(g.type==='GeometryCollection') for(const child of arr(g.geometries,'geometries')) features.push(decode(child));
     else features.push(decode(g));
   }
-  return collection(features);
+  return {type:'FeatureCollection',features};
 }
 /** Export unquantized absolute-coordinate TopoJSON, with shared arcs stored once. */
 export function exportTopoJSON(input: FeatureCollection): TopoJSONTopology {
