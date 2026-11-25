@@ -26,12 +26,17 @@
     "test": "npm run build && node --test test/*.test.mjs",
     "check": "npm run typecheck && npm run test",
     "demo:map": "node examples/progressive/server.mjs",
-    "test:browser": "npm run build && playwright test"
+    "test:browser": "npm run build && playwright test",
+    "demo:globe": "node examples/progressive/server.mjs --globe",
+    "test:globe:browser": "npm run build && playwright test globe.spec.mjs"
   },
   "devDependencies": {
     "typescript": "^5.8.3",
     "maplibre-gl": "5.6.2",
-    "@playwright/test": "1.55.1"
+    "@playwright/test": "1.55.1",
+    "d3": "7.8.2",
+    "topojson-client": "3.1.0",
+    "world-atlas": "2.0.2"
   },
   "bin": {
     "quadstream": "./bin/quadstream.mjs"
