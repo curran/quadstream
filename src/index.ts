@@ -19,3 +19,11 @@ export { ProgressiveMap } from './progressive-map.js';
 export type { MapQuery, MapFrame, ProgressiveMapClient } from './progressive-map.js';
 export { attachMapLibre, mapLibreBounds } from './maplibre-adapter.js';
 export type { MapLibreLike, MapLibreAdapterOptions } from './maplibre-adapter.js';
+
+export { canonicalLonLat, lonLatVector, angularDistance, validGreatCirclePath,
+  sphericalCellAddress, buildSphericalPriorities, sphericalChart, projectSpherical,
+  sphericalPolygonSignature, validSphericalPolygon } from './spherical-geometry.js';
+export type { UnitVector, CubeFace, SphericalCell, SphericalPriorities, SphericalChart,
+  SphericalPolygonSignature } from './spherical-geometry.js';
+export { SphericalQuadstreamDataset, buildSphericalQuadstream, importSphericalTopoJSON } from './spherical-dataset.js';
+export type { SphericalQueryOptions } from './spherical-dataset.js';
