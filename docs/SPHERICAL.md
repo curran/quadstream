@@ -20,7 +20,8 @@ reconciliation is performed. Edges are interpreted as minor great-circle arcs.
 Coincident and near-antipodal endpoints are rejected; no implicit resampling.
 
 Six cube faces have independently sparse hierarchical occupancy. Dominant
-Cartesian axis chooses the face with fixed X/Y/Z tie precedence. Vertex ordering
+Cartesian axis chooses the face with fixed X/Y/Z tie precedence. Exact cardinal meridians use exact zero components,
+without snapping neighboring coordinates. Vertex ordering
 is critical-first, then canonical longitude/latitude and ID. Occupancy is
 deterministic for fixed input and IDs, and overflow is explicit. Cube faces are
 not equal-area; this is a reference priority metric, not a claim of optimal
@@ -54,4 +55,4 @@ serialize spherical results through the planar v1 partition API.
 The Node test suite includes exact seam and pole aliases, six faces, boundary
 tie handling, seeded occupancy, winding, holes, crossing and ambiguous rings,
 reverse arcs, nested BLG selections, global fallback, named transformed
-TopoJSON, and planar v1 round trips. Run `npm run check` on Node 20 and 22.
+TopoJSON, and planar v1 round trips. Run `npm run check` on Node 26, matching CI.
