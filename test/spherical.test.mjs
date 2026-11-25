@@ -49,6 +49,43 @@ test('six face centers and deterministic face tie ownership',()=>{
   assert.deepEqual(sphericalCellAddress([90,90],5),sphericalCellAddress([-90,90],5));
   for(const l of [-1,26,0.1,NaN])assert.throws(()=>sphericalCellAddress([0,0],l));
 });
+test('exact cardinal vectors and center cells at all supported depths',()=>{
+  const cases=[
+    [[0,0],[1,0,0],'+X'],[[180,0],[-1,0,0],'-X'],
+    [[-180,0],[-1,0,0],'-X'],[[90,0],[0,1,0],'+Y'],
+    [[-90,0],[0,-1,0],'-Y'],[[0,90],[0,0,1],'+Z'],
+    [[0,-90],[0,0,-1],'-Z']
+  ];
+  for(const [p,vector,face] of cases){
+    assert.deepEqual(lonLatVector(p),vector);
+    for(let level=0;level<=25;level++){
+      const c=sphericalCellAddress(p,level);
+      assert.equal(c.face,face);
+      assert.equal(c.i,Math.floor(2**level/2));
+      assert.equal(c.j,Math.floor(2**level/2));
+    }
+  }
+});
+test('cardinal meridians stay exact away from equator without snapping neighbors',()=>{
+  for(const lat of [-60,-10,10,60]){
+    for(const lon of [-180,-90,0,90,180]){
+      const v=lonLatVector([lon,lat]);
+      assert.equal(v[Math.abs(lon)===90?0:1],0);
+      assert.ok(Math.abs(Math.hypot(...v)-1)<1e-14);
+    }
+  }
+  const delta=1e-6;
+  for(const lon of [-90,0,90]){
+    const index=lon===0?1:0;
+    const a=lonLatVector([lon-delta,10])[index];
+    const b=lonLatVector([lon+delta,10])[index];
+    assert.ok(a*b<0);
+  }
+  assert.ok(lonLatVector([180-delta,10])[1]>0);
+  assert.ok(lonLatVector([-180+delta,10])[1]<0);
+  assert.equal(sphericalCellAddress([-180+delta,0],25).i,2**24-1);
+  assert.equal(sphericalCellAddress([180-delta,0],25).i,2**24);
+});
 test('cell ancestry at every depth and valid cube indices',()=>{
   for(const p of [[-180,0],[45,45],[0,90],[13,-61],[-123,44],[89,1]]){
     for(let l=1;l<=25;l++){
