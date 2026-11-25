@@ -24,10 +24,14 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test test/*.test.mjs",
-    "check": "npm run typecheck && npm run test"
+    "check": "npm run typecheck && npm run test",
+    "demo:map": "node examples/progressive/server.mjs",
+    "test:browser": "npm run build && playwright test"
   },
   "devDependencies": {
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "maplibre-gl": "5.6.2",
+    "@playwright/test": "1.55.1"
   },
   "bin": {
     "quadstream": "./bin/quadstream.mjs"

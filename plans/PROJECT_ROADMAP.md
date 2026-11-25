@@ -46,6 +46,10 @@ Run a fresh checkout `npm install`, `npm run check` and the demo on supported No
 
 **Acceptance:** panning/zooming while partitions arrive never silently displays invalid topology or allows older viewport responses to replace the current view; demo runs without VizHub services.
 
+### PR9b — Spherical D3 orthographic globe (proposed)
+
+Graft onto the maintainer's existing React/D3 orthographic globe with Canvas geography and SVG city labels. Spherical topology, vertex priorities, winding, dateline/pole handling and conservative spherical visibility require a separate correctness workstream before claiming spherical support. See [detailed scope](D3_ORTHOGRAPHIC_GLOBE.md). Implement after PR9; may be split into sequential standalone PRs.
+
 ### PR10 — Algorithm hardening, production benchmarks and v0.1.0 release
 
 **Goal:** quantify whether Quadstream offers differentiated value compared with modern alternatives.
