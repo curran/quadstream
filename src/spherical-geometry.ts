@@ -23,7 +23,16 @@ export function canonicalLonLat(value: unknown): Position {
 export function lonLatVector(p: Position): UnitVector {
   const [lon,lat]=canonicalLonLat(p);
   if(Math.abs(lat)===90) return [0,0,Math.sign(lat)];
-  return [Math.cos(lat*rad)*Math.cos(lon*rad),Math.cos(lat*rad)*Math.sin(lon*rad),Math.sin(lat*rad)];
+  const c=Math.cos(lat*rad), z=Math.sin(lat*rad);
+  // Exact cardinal meridians lie on cube-cell boundaries. Avoid trig
+  // residuals such as sin(-pi), without snapping nearby longitudes.
+  switch(lon){
+    case -180:return [-c,0,z];
+    case -90:return [0,-c,z];
+    case 0:return [c,0,z];
+    case 90:return [0,c,z];
+    default:return [c*Math.cos(lon*rad),c*Math.sin(lon*rad),z];
+  }
 }
 export function angularDistance(a: Position,b: Position): number {
   const u=lonLatVector(a),v=lonLatVector(b);
