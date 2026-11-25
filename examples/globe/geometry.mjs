@@ -36,7 +36,7 @@ export function d3Compatible(source,candidate,d3,full=false){
  }
  if(full){
   if(Math.abs(d3.geoArea(source)-d3.geoArea(candidate))>1e-9)return false;
-  for(const p of [[0,0],[90,0],[-90,0],[179,15],[-179,-15],[0,89],[0,-89],[30,30],[-60,-30]]){
+  for(const p of [[0.37,0.61],[90.37,0.61],[-90.37,0.61],[179.37,15.61],[-179.37,-15.61],[0.37,89.61],[0.37,-89.61],[30.37,30.61],[-60.37,-30.61]]){
    if(d3.geoContains(source,p)!==d3.geoContains(candidate,p))return false;
   }
  }
