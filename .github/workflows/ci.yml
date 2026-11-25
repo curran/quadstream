@@ -5,7 +5,8 @@ on:
     branches: [master, main]
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Playwright 1.55.1 supports Ubuntu 24.04; avoid runner-image drift.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
