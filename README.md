@@ -29,7 +29,7 @@ npm run check
 node examples/hello.mjs
 ```
 
-`npm run check` runs the strict TypeScript build and Node's built-in test runner. No external test framework or runtime dependency is required. If dependency installation is unavailable, a compatible globally installed `tsc` can run the same checks.
+`npm run check` runs the strict TypeScript build and Node's built-in test runner. The core has no runtime dependencies; the globe regression tests use pinned demo development dependencies.
 
 ```js
 import { buildQuadstream, exportPartitions, QuadstreamSession, QuadstreamLoader, fetchFromBundle } from '@quadstream/core';
@@ -75,7 +75,7 @@ Viewport queries perform **feature-bounds filtering**, not line clipping. Geomet
 
 This combined modernization covers the foundation, topology, sparse quadtree, BLG, combined engine, viewport index and versioned progressive artifact scopes. It also includes deterministic fuzz/property-style tests, API declarations, a runnable example, and architecture documentation.
 
-It does **not** claim that progressive loading is network-integrated or that a production map renderer is available. The following are deliberately deferred: production-grade HTTP transport/CDN/persistent caching, robust high-scale topology validation, MapLibre integration, visual demo, benchmarking against Tippecanoe, npm release.
+It does **not** claim that progressive loading is network-integrated or that a production map renderer is available. The following are deliberately deferred: production-grade HTTP transport/CDN/persistent caching, robust high-scale topology validation, production map deployment, benchmarking against Tippecanoe, npm release.
 
 See [the architecture](docs/ARCHITECTURE.md), [historical provenance](docs/HISTORY.md), [contributing](CONTRIBUTING.md), and [project roadmap](plans/PROJECT_ROADMAP.md).
 
@@ -109,3 +109,7 @@ Run `npm run build` and `npm run demo:map` after installing dependencies. See [t
 ## Experimental spherical geometry
 
 The separate `buildSphericalQuadstream` and `importSphericalTopoJSON` APIs provide a geographic, in-memory reference path for D3 globes. See [spherical coordinate semantics and limitations](docs/SPHERICAL.md). All existing planar APIs and v1 partitions are unchanged.
+
+## Orthographic globe demo
+
+Run `npm run build` and `npm run demo:globe`. This geometry-only D3 Canvas demo includes touch rotation and repeated pinch zoom, real atlas inputs, and Quadstream/original comparison. See [globe controls, provenance and limitations](docs/GLOBE.md).

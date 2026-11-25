@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Quadstream Globe</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;color:#eee;font:14px system-ui,sans-serif;background:#141432}
+#globe{width:100%;height:100%;display:block;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;background:radial-gradient(ellipse at 30% 20%,#1b1b3a,#141432 40%,#0b0b1e)}
+#globe:focus-visible{outline:2px solid #c4b5fd;outline-offset:-3px}#panel{position:absolute;top:10px;left:10px;max-width:calc(100% - 20px);background:#17172ce8;padding:10px;border:1px solid #5c5c96;border-radius:8px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+button,select,input{font:inherit;color:inherit;accent-color:#c4b5fd}button,select{background:#29294a;border:1px solid #8f86d9;border-radius:4px;padding:4px 7px}button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid #c4b5fd}label{display:flex;align-items:center;gap:6px}input[type=range]{width:92px}#status{flex-basis:100%;margin:0;color:#ddd;font-size:12px}details{flex-basis:100%;font-size:12px}pre{white-space:pre-wrap;margin:6px 0 0}#file{max-width:180px}
+</style></head><body>
+<canvas id="globe" tabindex="0" aria-label="Interactive globe. Drag or use arrows to rotate, pinch or use plus and minus to zoom."></canvas>
+<section id="panel" aria-label="Globe controls">
+<label>Geometry <select id="mode"><option value="quadstream">Quadstream</option><option value="original">Original</option></select></label>
+<label><input id="auto" type="checkbox" checked> Auto detail</label>
+<label>LOD <input id="level" type="range" min="0" max="19" value="4" disabled><output id="level-value">4</output></label>
+<button id="reset">Reset view</button><button id="retry">Retry</button>
+<label>Atlas <select id="atlas"><option value="110m">110m</option><option value="50m">50m</option><option value="fixture">Test fixture</option></select></label>
+<label>Local file <input id="file" type="file" accept=".json,.geojson,.topojson"></label>
+<p id="status" role="status" aria-live="polite">Loading geometry…</p>
+<details><summary>Diagnostics</summary><pre id="diagnostics"></pre></details>
+</section>
+<script src="../../node_modules/d3/dist/d3.min.js"></script><script src="../../node_modules/topojson-client/dist/topojson-client.min.js"></script><script type="module" src="./main.mjs"></script>
+</body></html>

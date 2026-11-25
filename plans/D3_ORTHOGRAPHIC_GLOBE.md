@@ -1,3 +1,17 @@
+# Quadstream orthographic globe follow-up
+
+The previous React/city-label proposal is superseded for the standalone demo. PR9b-1 landed the spherical reference geometry engine. PR9b-2 adapts the simpler [VizHub globe](https://vizhub.com/viz/rPa9vFJ0kEvpjaJn-280C) with no data overlays and a dedicated pointer controller. See [implemented demo and acceptance gates](../docs/GLOBE.md).
+
+## PR9b-3 — remaining work
+
+- Compare against independent robust spherical predicates and real atlases; address source and simplification rejection without dropping features or splitting shared boundaries.
+- Measure projected error across rotations and scale; calibrate LOD thresholds and benchmark 50m/10m datasets, build time, query time, memory, draw time and fallback frequency.
+- Develop conservative hemisphere visibility that retains horizon-crossing arcs and polygons covering the view with no visible vertices. Compare against exhaustive global D3 rendering.
+- Specify versioned spherical binary partitions, transport negotiation, immutable artifacts and bounded fetch/cache behavior. Keep planar v1 compatible. Do not claim streaming before this work is implemented.
+- Verify native multi-touch on physical iPhone Safari and Android Chrome; test device rotation, browser interruptions, repeated pinches and performance. Assess self-hosted/VizHub-compatible publication after license and provenance review.
+
+## Earlier design (historical)
+
 # Follow-up: Quadstream + D3 orthographic globe (PR9b, proposed)
 
 This is a distinct, direct-to-default-branch follow-up to PR9. Graft Quadstream
