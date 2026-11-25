@@ -19,6 +19,44 @@ async function pointer(page,type,id,x,y,pointerType='touch'){
 }
 async function waitScale(page,value){await expect.poll(async()=>Math.abs((await state(page)).scale-value)).toBeLessThan(.001);}
 async function manual(page,level){await page.locator('#auto').uncheck();await page.locator('#level').evaluate((el,v)=>{el.value=String(v);el.dispatchEvent(new Event('input',{bubbles:true}));},level);await ready(page);await expect(globe(page)).toHaveAttribute('data-rendered-level',String(level));}
+// Compare within one browser, at an identical idle camera and full LOD.
+async function compareFullPixels(page,label){
+ await ready(page);
+ await expect(globe(page)).toHaveAttribute('data-interacting','false');
+ const before=await state(page);expect(before.level).toBe(19);
+ await page.locator('#mode').selectOption('original');
+ await expect(globe(page)).toHaveAttribute('data-mode','original');
+ // Keep the original raw RGBA buffer in the browser. PNG encoding/decoding
+ // and drawing onto another canvas can introduce color/alpha rounding.
+ const original=await globe(page).evaluateHandle(el=>({width:el.width,height:el.height,data:el.getContext('2d').getImageData(0,0,el.width,el.height).data}));
+ try{
+  await page.locator('#mode').selectOption('quadstream');await ready(page);
+  const after=await state(page);
+  expect(after.rotation).toEqual(before.rotation);expect(after.scale).toBe(before.scale);
+  expect(after.level).toBe(19);expect(after.interacting).toBe(false);
+  const difference=await globe(page).evaluate((el,snapshot)=>{
+   if(el.width!==snapshot.width||el.height!==snapshot.height)throw new Error('Canvas size changed during comparison');
+   const a=snapshot.data,b=el.getContext('2d').getImageData(0,0,el.width,el.height).data;
+   let n=0;for(let i=0;i<a.length;i+=4)if(Math.max(Math.abs(a[i]-b[i]),Math.abs(a[i+1]-b[i+1]),Math.abs(a[i+2]-b[i+2]),Math.abs(a[i+3]-b[i+3]))>12)n++;return n/(el.width*el.height);
+  },original);
+  expect(difference,label+' differing pixel fraction: '+difference).toBeLessThan(.005);
+ }finally{await original.dispose();}
+}
+// Drive the same public keyboard and wheel event handlers as a user.
+// Each camera starts from Reset; wheel zoom is exponential and bounded.
+async function atlasView(page,rotation,zoom){
+ await page.locator('#reset').click();
+ await globe(page).evaluate((el,{rotation,zoom})=>{
+  const press=(key,n)=>{for(let i=0;i<n;i++)el.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));};
+  const x=rotation[0]/12,y=(rotation[1]+20)/12;
+  press(x<0?'ArrowLeft':'ArrowRight',Math.abs(x));
+  press(y<0?'ArrowUp':'ArrowDown',Math.abs(y));
+  if(zoom!==1)el.dispatchEvent(new WheelEvent('wheel',{deltaY:-Math.log(zoom)/.0015,bubbles:true,cancelable:true}));
+ },{rotation,zoom});
+ await expect.poll(async()=>(await state(page)).rotation).toEqual(rotation);
+ await expect.poll(async()=>Math.abs((await state(page)).scale/(await state(page)).initial-zoom)).toBeLessThan(.001);
+ await expect(globe(page)).toHaveAttribute('data-interacting','false');
+}
 test('mouse drag rotates without geometry queries; wheel zoom and keyboard work',async({page})=>{
  await page.goto(url);await ready(page);const a=await state(page);
  await page.mouse.move(500,400);await page.mouse.down();await page.mouse.move(650,450,{steps:5});await page.mouse.up();
@@ -72,23 +110,25 @@ test('resize preserves relative zoom and rotation',async({page})=>{
 test('manual levels reduce geometry and return full detail; original toggle draws equivalent pixels',async({page})=>{
  await page.goto(url);await ready(page);await manual(page,0);const a=await state(page);expect(a.vertices).toBeLessThan(a.source);
  await manual(page,19);const b=await state(page);expect(b.vertices).toBe(b.source);
- await page.locator('#mode').selectOption('original');await expect(globe(page)).toHaveAttribute('data-mode','original');
- // Keep the original raw RGBA buffer in the browser. PNG encoding/decoding
- // and drawing onto another canvas can introduce color/alpha rounding.
- const original=await globe(page).evaluateHandle(el=>({width:el.width,height:el.height,data:el.getContext('2d').getImageData(0,0,el.width,el.height).data}));
- try{
-  await page.locator('#mode').selectOption('quadstream');await ready(page);
-  const difference=await globe(page).evaluate((el,snapshot)=>{
-   if(el.width!==snapshot.width||el.height!==snapshot.height)throw new Error('Canvas size changed during comparison');
-   const a=snapshot.data,b=el.getContext('2d').getImageData(0,0,el.width,el.height).data;
-   let n=0;for(let i=0;i<a.length;i+=4)if(Math.max(...[0,1,2,3].map(j=>Math.abs(a[i+j]-b[i+j])))>12)n++;return n/(el.width*el.height);
-  },original);expect(difference).toBeLessThan(.005);
- }finally{await original.dispose();}
+ await compareFullPixels(page,'controlled fixture');
 });
-test('default real atlas loads, supports reduction and full detail',async({page})=>{
+test('default real atlas loads, reduces geometry and matches full-detail pixels across views',async({page})=>{
  await page.goto('/examples/globe/index.html');await ready(page);await manual(page,4);const a=await state(page);
  expect(a.source).toBeGreaterThan(1000);expect(a.vertices).toBeLessThan(a.source);
  await manual(page,19);expect((await state(page)).vertices).toBeLessThanOrEqual(a.source);
+ // Reuse the real atlas worker across views to avoid repeated preprocessing.
+ for(const [name,rotation] of [
+  ['Atlantic',[0,-20,0]],
+  ['Pacific / antimeridian',[180,4,0]],
+  ['north polar',[0,88,0]],
+  ['south polar',[0,-92,0]]
+ ])for(const zoom of [1,3]){
+  const label=name+' at '+zoom+'x';
+  await test.step(label,async()=>{
+   await atlasView(page,rotation,zoom);
+   await compareFullPixels(page,label);
+  });
+ }
 });
 test('failed local file surfaces an error and fixture reload recovers',async({page})=>{
  await page.goto(url);await ready(page);
