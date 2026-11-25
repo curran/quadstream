@@ -16,5 +16,22 @@ jobs:
       - run: npm run check
       - run: node examples/hello.mjs
       - run: node bin/quadstream.mjs --help
-      - run: npx playwright install --with-deps chromium webkit
+      - name: Install Playwright system dependencies
+        timeout-minutes: 10
+        run: npx playwright install-deps chromium webkit
+      - name: Restore Playwright browser cache
+        id: playwright-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-ubuntu-24.04-${{ runner.arch }}-${{ hashFiles('package.json') }}
+      - name: Install Playwright browsers
+        timeout-minutes: 10
+        run: npx playwright install chromium webkit
+      - name: Save Playwright browser cache
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
       - run: npm run test:globe:browser
