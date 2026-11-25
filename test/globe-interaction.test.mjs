@@ -20,7 +20,14 @@ test('consecutive pinch-out and pinch-in use fresh on-screen scale',()=>{
  const {g,state}=harness();
  g.down(1,0,0);g.down(2,100,0);g.move(2,200,0);close(state.scale,560);g.up(1);g.up(2);
  g.down(3,0,0);g.down(4,100,0);g.move(4,150,0);close(state.scale,840);
- g.move(4,50,0);close(state.scale,420);g.up(3);g.up(4);
+ // The entire second gesture is relative to its initial scale (560)
+ // and distance (100), not the preceding move's scale (840).
+ g.move(4,50,0);close(state.scale,280);
+ g.move(4,100,0);close(state.scale,560);
+ g.move(4,75,0);close(state.scale,420);g.up(3);g.up(4);
+ // A third gesture must now start from the last committed scale.
+ g.down(5,0,0);g.down(6,100,0);g.move(6,200,0);close(state.scale,840);
+ g.up(5);g.up(6);
 });
 test('one-two-one transition preserves rotation and does not jump',()=>{
  const {g,state}=harness();g.down(1,10,10);g.move(1,30,10);const r=state.rotation.slice();
