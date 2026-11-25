@@ -8,6 +8,16 @@ interface PendingFeature {
 }
 /** Exact coordinate topology: no implicit snapping, deduping almost-equal points, or antimeridian wrapping. */
 export function buildTopology(input: FeatureCollection): Topology {
+  return buildTopologyWithPolicy(input,{position:assertPosition,ring:simpleClosedRing,polygon:validPolygon});
+}
+export interface TopologyPolicy {
+  position(value:unknown):Position;
+  ring(ring:readonly Position[]):boolean;
+  polygon(rings:readonly Position[][]):boolean;
+  line?(path:readonly Position[]):boolean;
+}
+/** Internal shared graph construction; coordinate semantics are provided by the caller. */
+export function buildTopologyWithPolicy(input:FeatureCollection,policy:TopologyPolicy):Topology {
   if (!input || input.type!=='FeatureCollection' || !Array.isArray(input.features))
     throw new Error('Expected a GeoJSON FeatureCollection');
   if (!input.features.length) throw new Error('Empty FeatureCollection is not supported');
@@ -15,7 +25,7 @@ export function buildTopology(input: FeatureCollection): Topology {
   const featureIds=new Set<string>();
   let overall: Bounds | undefined;
   function vertexId(p: Position): number {
-    const [x,y]=assertPosition(p), key=JSON.stringify([x,y]);
+    const [x,y]=policy.position(p), key=JSON.stringify([x,y]);
     const existing=byLocation.get(key);
     if (existing!==undefined) return existing;
     const id=vertices.length; vertices.push({id,x,y,critical:false}); byLocation.set(key,id); return id;
@@ -33,12 +43,12 @@ export function buildTopology(input: FeatureCollection): Topology {
     const paths:RawPath[]=[],groups:number[][]=[];
     function append(coords: Position[],closed: boolean): void {
       if(!Array.isArray(coords)) throw new Error('Invalid coordinate path');
-      const pts=coords.map(assertPosition);
+      const pts=coords.map(policy.position);
       if(closed) {
         if(pts.length>=2 && pts[0]![0]===pts.at(-1)![0] && pts[0]![1]===pts.at(-1)![1]) pts.pop();
-        if(new Set(pts.map(p=>JSON.stringify(p))).size<3 || !simpleClosedRing([...pts,pts[0]!]))
+        if(new Set(pts.map(p=>JSON.stringify(p))).size<3 || !policy.ring([...pts,pts[0]!]))
           throw new Error(`Invalid or self-intersecting source polygon ring in feature ${id}`);
-      } else if(pts.length<2 || new Set(pts.map(p=>JSON.stringify(p))).size<2)
+      } else if(pts.length<2 || new Set(pts.map(p=>JSON.stringify(p))).size<2 || (policy.line && !policy.line(pts)))
         throw new Error(`Line requires >=2 distinct coordinates in feature ${id}`);
       const ids=pts.map(vertexId);
       paths.push({ids,closed});
@@ -46,8 +56,8 @@ export function buildTopology(input: FeatureCollection): Topology {
     if(type==='Polygon') {
       const group:number[]=[];
       for(const ring of coordinates as Position[][]) {group.push(paths.length);append(ring,true);}
-      if(!group.length || !validPolygon((coordinates as Position[][]).map(r=>{
-        const pts=r.map(assertPosition);return pts[0]![0]===pts.at(-1)![0] && pts[0]![1]===pts.at(-1)![1] ? pts : [...pts,pts[0]!];
+      if(!group.length || !policy.polygon((coordinates as Position[][]).map(r=>{
+        const pts=r.map(policy.position);return pts[0]![0]===pts.at(-1)![0] && pts[0]![1]===pts.at(-1)![1] ? pts : [...pts,pts[0]!];
       }))) throw new Error(`Invalid polygon (possibly hole containment): ${id}`);
       groups.push(group);
     } else if(type==='MultiPolygon') {
@@ -55,8 +65,8 @@ export function buildTopology(input: FeatureCollection): Topology {
         const group:number[]=[];
         for(const ring of polygon){ group.push(paths.length);append(ring,true); }
         groups.push(group);
-        if(!validPolygon(polygon.map(r=>{
-          const pts=r.map(assertPosition);return pts[0]![0]===pts.at(-1)![0] && pts[0]![1]===pts.at(-1)![1] ? pts:[...pts,pts[0]!];
+        if(!policy.polygon(polygon.map(r=>{
+          const pts=r.map(policy.position);return pts[0]![0]===pts.at(-1)![0] && pts[0]![1]===pts.at(-1)![1] ? pts:[...pts,pts[0]!];
         }))) throw new Error(`Invalid multipolygon component: ${id}`);
       }
       if(!groups.length) throw new Error(`Empty multipolygon: ${id}`);
