@@ -189,9 +189,11 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
   const reasons = [
     ...new Set(groups.filter((g) => g.error).map((g) => g.error)),
   ].slice(0, 4);
-  function query(level) {
-    if (!Number.isFinite(level) || level < 0 || level >= maxLevel)
+  function query(requested) {
+    if (!Number.isFinite(requested) || requested < 0 || requested >= maxLevel)
       throw new Error("Invalid globe detail level");
+    // Levels are quantized to tenths so float noise (7.300000001) shares one cache entry.
+    const level = Math.round(requested * 10) / 10;
     if (cache.has(level))
       return { ...cache.get(level), cached: true, queryMs: 0 };
     const start = clock(),

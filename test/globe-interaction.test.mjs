@@ -330,3 +330,34 @@ test("worker bridge matches IDs, rejects failures and terminates pending request
   assert.equal(w.terminated, true);
   await assert.rejects(c.query(7), /closed/);
 });
+
+test("globe queries quantize levels to tenths for cache reuse", async () => {
+  const { createGlobeGeometry } =
+    await import("../examples/globe/geometry.mjs");
+  const feature = {
+    type: "Feature",
+    id: "a",
+    properties: {},
+    geometry: {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [10, 0],
+          [10, 10],
+          [0, 10],
+          [0, 0],
+        ],
+      ],
+    },
+  };
+  const engine = createGlobeGeometry(
+    { type: "FeatureCollection", features: [feature] },
+    globalThis.d3,
+  );
+  const a = engine.query(7.3);
+  const b = engine.query(7.300000000001);
+  assert.equal(b.cached, true);
+  assert.equal(b.level, 7.3);
+  assert.equal(a.vertices, b.vertices);
+});
