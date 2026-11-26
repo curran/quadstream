@@ -1,7 +1,6 @@
 {
   "name": "@vizhub/quadstream",
   "version": "0.1.0",
-  "private": true,
   "description": "Deterministic, topology-aware progressive geographic geometry engine",
   "type": "module",
   "sideEffects": false,
