@@ -53,7 +53,8 @@ export function createMinimapRenderer(d3, ctx) {
     sphere = { type: "Sphere" },
     capCache = new WeakMap();
 
-  return (state, geojson) => {
+  // `visible` optionally supplies the geometry the main canvas actually drew.
+  return (state, geojson, visible = null) => {
     const size = state.miniSize ?? 160,
       dpr = state.dpr ?? 1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -91,14 +92,14 @@ export function createMinimapRenderer(d3, ctx) {
       ctx.stroke();
 
       // Highlighted polygons that pass bounding-cap culling.
-      const visible = filterVisibleFeatures(geojson, state, capCache);
-      if (visible.features.length) {
+      const lit = visible ?? filterVisibleFeatures(geojson, state, capCache);
+      if (lit.features.length) {
         ctx.fillStyle = "#3f3880";
         ctx.strokeStyle = "#c4b5fd";
         ctx.globalAlpha = 0.95;
         ctx.lineWidth = 0.75;
         ctx.beginPath();
-        path(visible);
+        path(lit);
         ctx.fill();
         ctx.stroke();
       }

@@ -65,8 +65,10 @@ Diagnostics distinguish requested/rendered levels, vertex counts, source
 fallback, D3-incompatible coarse groups, strict-validator warnings,
 build/query latency, atlas payload bytes, and last draw duration. Draw-only FPS
 is an estimate, not measured sustained animation FPS. The full atlas is
-downloaded up front. No spherical binary artifacts, network partition streaming,
-or hemisphere culling are implemented here; no claim of bandwidth savings.
+downloaded up front. No spherical binary artifacts or network partition
+streaming are implemented here, and the engine query is never viewport-aware;
+there is no claim of bandwidth savings. Render-time culling and clipping are
+described below.
 High-detail sources may be slow with quadratic reference validation.
 
 ## Tests
@@ -88,6 +90,38 @@ synthetic PointerEvents; WebKit exercises the pointer events. These are not
 physical iOS/Android hardware tests. CI uses Node 26 only. Before declaring
 mobile parity, manually verify on iPhone Safari and Android Chrome, including
 consecutive pinches, interruptions, orientation changes and rotation at zoom.
+
+## View culling and clipping
+
+The renderer never changes the Quadstream query. After a frame is received,
+`clip.mjs` trims it to the visible cone per animation frame:
+
+1. Features whose bounding cap misses the view cone are dropped.
+2. Rings entirely inside the clip window keep their identity (no copy).
+3. A ring crossing the window boundary keeps only its inside vertices plus the
+   exact great-circle/boundary crossings. Each outside run collapses to a walk
+   along the boundary in the winding direction that preserves the polygon
+   interior (clockwise for exterior rings, counter-clockwise for the region a
+   hole encloses). Each exit pairs with the first entry met along the
+   boundary, so a ring dipping in and out splits into separate rings.
+4. A ring with no crossing is classified by azimuth winding around the window
+   centre: a covering exterior becomes the window circle, an exterior that does
+   not cover the window drops the polygon, and a hole that contains the window
+   drops the polygon.
+
+The window is the view cone plus a margin and extra padding, and its result is
+reused until the live cone leaves it, so dragging rarely re-clips. Crossings are
+computed from a canonical edge orientation so neighbours share bit-identical
+points. Views whose cone (plus margin) approaches a hemisphere fall back to
+whole-feature culling. The minimap highlights the geometry actually drawn.
+`?clip=0` restores whole-feature culling for A/B comparison; diagnostics report
+vertices and rings drawn, clipped, wrapped and dropped.
+
+Tests compare clipped geometry with the original via `d3.geoContains` on random
+views of the 110m and 50m atlases (including poles, the antimeridian and holes)
+and compare canvas pixels in Chromium and WebKit. The boundary walk is sampled
+every 4 degrees, so shapes right at the window edge are approximate; the margin
+keeps that edge outside the viewport.
 
 ## Fractional LOD and repair
 

@@ -100,3 +100,45 @@ test("createMinimapRenderer renders sphere, graticule, culled/visible geometry, 
   );
   assert.equal(emptyCtx.ops.filter((o) => o[0] === "fill").length, 1);
 });
+
+test("minimap highlights the supplied visible geometry instead of recomputing culling", () => {
+  const ctx = makeMockCtx();
+  const draw = createMinimapRenderer(d3, ctx);
+  const feature = (lon) => ({
+    type: "Feature",
+    properties: {},
+    geometry: {
+      type: "Polygon",
+      coordinates: [
+        [
+          [lon, 0],
+          [lon, 5],
+          [lon + 5, 5],
+          [lon + 5, 0],
+          [lon, 0],
+        ],
+      ],
+    },
+  });
+  const all = {
+    type: "FeatureCollection",
+    features: [feature(0), feature(40)],
+  };
+  const state = {
+    width: 400,
+    height: 300,
+    rotation: [0, 0, 0],
+    scale: 100,
+    translation: [200, 150],
+    miniSize: 160,
+  };
+  const fills = (visible) => {
+    ctx.ops.length = 0;
+    draw(state, all, visible);
+    return ctx.ops.length;
+  };
+  // Both calls draw a highlight layer; an empty supplied collection skips it.
+  const withDefault = fills(undefined);
+  const withEmpty = fills({ type: "FeatureCollection", features: [] });
+  assert.ok(withDefault > withEmpty);
+});

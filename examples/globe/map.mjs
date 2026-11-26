@@ -1,12 +1,18 @@
 // Adapted from VizHub rPa9vFJ0kEvpjaJn-280C (MIT). Geometry only.
 import { filterVisibleFeatures } from "./cull.mjs";
+import { createViewClipper } from "./clip.mjs";
 
-export function createGlobeRenderer(d3, ctx, { cull = false } = {}) {
+export function createGlobeRenderer(
+  d3,
+  ctx,
+  { cull = false, clip = false } = {},
+) {
   const projection = d3.geoOrthographic(),
     path = d3.geoPath(projection, ctx),
     graticule = d3.geoGraticule()();
   const sphere = { type: "Sphere" };
-  const capCache = cull ? new WeakMap() : null;
+  const capCache = cull || clip ? new WeakMap() : null;
+  const clipper = clip ? createViewClipper() : null;
   let oceanKey;
   let ocean;
   function drawShape(g, fill, stroke) {
@@ -61,9 +67,13 @@ export function createGlobeRenderer(d3, ctx, { cull = false } = {}) {
     ctx.strokeStyle = "#8f86d9";
     ctx.globalAlpha = 0.9;
     ctx.lineWidth = 0.5;
-    const target = cull
-      ? filterVisibleFeatures(geojson, state, capCache)
-      : geojson;
+    let target = geojson,
+      stats = null;
+    if (clipper) {
+      const res = clipper(geojson, state);
+      target = res.geojson;
+      stats = res.stats;
+    } else if (cull) target = filterVisibleFeatures(geojson, state, capCache);
     if (target?.features?.length) {
       ctx.beginPath();
       path(target);
@@ -71,5 +81,7 @@ export function createGlobeRenderer(d3, ctx, { cull = false } = {}) {
       ctx.stroke();
     }
     ctx.restore();
+    // `visible` is exactly what was handed to d3 for the land layer.
+    return { visible: target, stats };
   };
 }

@@ -18,7 +18,12 @@ const $ = (id) => document.getElementById(id),
   status = $("status"),
   ctx = canvas.getContext("2d"),
   miniCtx = miniCanvas?.getContext("2d");
-const draw = createGlobeRenderer(globalThis.d3, ctx, { cull: true });
+// ?clip=0 restores whole-feature culling only, for A/B comparison.
+const clipEnabled = new URLSearchParams(location.search).get("clip") !== "0";
+const draw = createGlobeRenderer(globalThis.d3, ctx, {
+  cull: true,
+  clip: clipEnabled,
+});
 const drawMinimap = miniCtx
   ? createMinimapRenderer(globalThis.d3, miniCtx)
   : null;
@@ -39,6 +44,7 @@ let original,
   selectedFile = null,
   abort,
   disposed = false;
+let drawStats = null;
 let requests = 0,
   frameMs = 0,
   atlasBytes = 0;
@@ -78,6 +84,27 @@ function diagnostics() {
       frameMs.toFixed(1) +
       " ms | draw-only FPS estimate: " +
       (frameMs > 0 ? (1000 / frameMs).toFixed(1) : "—"),
+    "Drawn: " +
+      (drawStats
+        ? drawStats.vertices +
+          " / " +
+          drawStats.sourceVertices +
+          " vertices, " +
+          drawStats.features +
+          " / " +
+          drawStats.sourceFeatures +
+          " features (" +
+          drawStats.mode +
+          "; rings kept " +
+          drawStats.rings.kept +
+          ", clipped " +
+          drawStats.rings.clipped +
+          ", wrapped " +
+          drawStats.rings.wrapped +
+          ", dropped " +
+          drawStats.rings.dropped +
+          ")"
+        : "—"),
     "Atlas payload: " + atlasBytes + " bytes | geometry queries: " + requests,
     ...(frame?.reasons ?? []),
   ].join("\n");
@@ -90,6 +117,9 @@ function diagnostics() {
     requests: String(requests),
     renderedLevel: String(frame?.level ?? ""),
     vertices: String(frame?.vertices ?? ""),
+    drawnVertices: String(drawStats?.vertices ?? ""),
+    drawMode: drawStats?.mode ?? "cull-only",
+    clipRebuilt: String(drawStats?.rebuilt ?? ""),
     sourceVertices: String(frame?.sourceVertices ?? ""),
     mode: $("mode").value,
   });
@@ -101,8 +131,13 @@ function schedule() {
     const start = performance.now();
     const activeGeojson =
       $("mode").value === "original" ? original : (frame?.geojson ?? original);
-    draw(state, activeGeojson);
-    drawMinimap?.({ ...state, miniSize: 160 }, activeGeojson);
+    const drawn = draw(state, activeGeojson);
+    drawStats = drawn.stats;
+    drawMinimap?.(
+      { ...state, miniSize: 160 },
+      activeGeojson,
+      drawn.stats ? drawn.visible : null,
+    );
     frameMs = performance.now() - start;
     diagnostics();
   });
