@@ -302,4 +302,4 @@ The separate `buildSphericalQuadstream` and `importSphericalTopoJSON` APIs provi
 
 ## Orthographic globe demo
 
-Run `npm run build` and `npm run demo:globe`. This geometry-only D3 Canvas demo includes touch rotation and repeated pinch zoom, real atlas inputs, and Quadstream/original comparison. See [globe controls, provenance and limitations](docs/GLOBE.md).
+Run `npm run build` and `npm run demo:globe`. This geometry-only D3 Canvas demo includes touch rotation and repeated pinch zoom, real atlas inputs, Quadstream/original comparison, and render-time view culling and spherical clipping (`?clip=0` to disable; the engine query itself is not viewport-aware). See [globe controls, provenance and limitations](docs/GLOBE.md).
