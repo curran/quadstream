@@ -4,7 +4,6 @@ import {
   resizedView,
 } from "./interaction.mjs";
 import {
-  levelForScale,
   quantizeAutoLevel,
   createLatestGeometry,
 } from "./lod.mjs";
@@ -13,6 +12,7 @@ import { createMinimapRenderer } from "./minimap.mjs";
 import { GlobeWorkerClient } from "./client.mjs";
 import { fixture } from "./fixture.mjs";
 const $ = (id) => document.getElementById(id),
+  MINIMAP_LEVEL = 4,
   canvas = $("globe"),
   miniCanvas = $("minimap"),
   status = $("status"),
@@ -33,12 +33,12 @@ const state = {
   ...resizedView({}, canvas.clientWidth, canvas.clientHeight),
 };
 let original,
+  minimapFrame,
   frame,
   client,
   latest,
   epoch = 0,
   raf = 0,
-  autoLevel,
   ready = false,
   sourceName = "110m",
   selectedFile = null,
@@ -116,6 +116,7 @@ function diagnostics() {
     interacting: String(state.interacting),
     requests: String(requests),
     renderedLevel: String(frame?.level ?? ""),
+    targetLevel: String(latest?.target ?? ""),
     vertices: String(frame?.vertices ?? ""),
     drawnVertices: String(drawStats?.vertices ?? ""),
     drawMode: drawStats?.mode ?? "cull-only",
@@ -131,12 +132,12 @@ function schedule() {
     const start = performance.now();
     const activeGeojson =
       $("mode").value === "original" ? original : (frame?.geojson ?? original);
+    const minimapGeojson = minimapFrame?.geojson ?? null;
     const drawn = draw(state, activeGeojson);
     drawStats = drawn.stats;
     drawMinimap?.(
       { ...state, miniSize: 160 },
-      activeGeojson,
-      drawn.stats ? drawn.visible : null,
+      minimapGeojson,
     );
     frameMs = performance.now() - start;
     diagnostics();
@@ -144,19 +145,19 @@ function schedule() {
 }
 function requestLevel() {
   if (!ready || !latest || $("mode").value === "original") return;
-  const sliderLevel = Number($("level").value),
-    level = $("auto").checked
-      ? (autoLevel = quantizeAutoLevel(
-          levelForScale(state.scale, autoLevel),
-          state.interacting,
-        ))
-      : sliderLevel;
-  if ($("auto").checked) $("level").value = String(level);
-  const displayLevel = $("auto").checked
-    ? level.toFixed(1)
-    : sliderLevel.toFixed(1);
-  $("level-value").value = displayLevel;
-  $("level-value").textContent = displayLevel;
+  const targetLevel = Number($("level").value),
+    interactiveCap = Number($("interactive-level").value),
+    zoomRatio =
+      state.initialScale > 0 ? state.scale / state.initialScale : 1,
+    settled = Math.max(0, Math.min(19, targetLevel + Math.log2(zoomRatio))),
+    effective = state.interacting
+      ? Math.min(interactiveCap, settled)
+      : settled,
+    level = quantizeAutoLevel(effective, state.interacting);
+  $("level-value").value = targetLevel;
+  $("level-value").textContent = targetLevel;
+  $("interactive-level-value").value = interactiveCap;
+  $("interactive-level-value").textContent = interactiveCap;
   if (latest.target !== level) {
     setStatus("Refining geometry…", "loading");
     void latest.select(level);
@@ -165,7 +166,7 @@ function requestLevel() {
 function update(patch) {
   Object.assign(state, patch);
   schedule();
-  if ("scale" in patch || patch.interacting === false) requestLevel();
+  if ("scale" in patch || "interacting" in patch) requestLevel();
 }
 const gesture = createGlobeInteraction({
   getState: () => state,
@@ -226,9 +227,9 @@ async function init() {
   const id = ++epoch;
   ready = false;
   frame = undefined;
+  minimapFrame = undefined;
   original = undefined;
   requests = 0;
-  autoLevel = undefined;
   atlasBytes = 0;
   latest?.dispose();
   client?.dispose();
@@ -308,6 +309,7 @@ async function init() {
         if ($("mode").value === "quadstream") error(e);
       },
     });
+    minimapFrame = await current.query(MINIMAP_LEVEL);
     if ($("mode").value === "original") setStatus("Original geometry", "ready");
     else requestLevel();
     schedule();
@@ -340,14 +342,14 @@ $("mode").addEventListener("change", () => {
   }
   schedule();
 });
-$("auto").addEventListener("change", () => {
-  $("level").disabled = $("auto").checked;
-  autoLevel = undefined;
-  requestLevel();
-});
 $("level").addEventListener("input", () => {
   $("level-value").value = $("level").value;
   $("level-value").textContent = $("level").value;
+  requestLevel();
+});
+$("interactive-level").addEventListener("input", () => {
+  $("interactive-level-value").value = $("interactive-level").value;
+  $("interactive-level-value").textContent = $("interactive-level").value;
   requestLevel();
 });
 $("reset").addEventListener("click", reset);

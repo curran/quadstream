@@ -129,13 +129,13 @@ test("pinch and wheel respect both original zoom bounds", () => {
   g.down(1, 0, 0);
   g.down(2, 100, 0);
   g.move(2, 10000, 0);
-  close(state.scale, 2240);
+  close(state.scale, 17920);
   g.move(2, 1, 0);
   close(state.scale, 168);
   g.up(1);
   g.up(2);
   g.wheel(-1e6);
-  close(state.scale, 2240);
+  close(state.scale, 17920);
   g.wheel(1e6);
   close(state.scale, 168);
 });

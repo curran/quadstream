@@ -19,7 +19,7 @@ export function createGlobeInteraction({
       onActive(next);
     }
   };
-  const clamp = (s, base) => Math.max(base * 0.6, Math.min(base * 8, s));
+  const clamp = (s, base) => Math.max(base * 0.6, Math.min(base * 64, s));
   const distance = () => {
     const [a, b] = pointers.values();
     return Math.hypot(a.x - b.x, a.y - b.y);

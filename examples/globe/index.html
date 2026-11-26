@@ -82,14 +82,14 @@
       input[type="range"] {
         width: 92px;
       }
-      #lod-row {
+      .lod-row {
         flex: 0 0 100%;
         width: 100%;
         display: flex;
         align-items: center;
         gap: 6px;
       }
-      #lod-row input[type="range"] {
+      .lod-row input[type="range"] {
         flex: 1;
         width: auto;
         min-width: 0;
@@ -144,8 +144,7 @@
           <option value="original">Original</option>
         </select></label
       >
-      <label><input id="auto" type="checkbox" checked /> Auto detail</label>
-      <div id="lod-row">
+      <div id="lod-row" class="lod-row">
         <label for="level">LOD</label>
         <input
           id="level"
@@ -154,8 +153,18 @@
           max="19"
           step="0.1"
           value="4"
-          disabled
         /><output id="level-value">4</output>
+      </div>
+      <div id="interactive-lod-row" class="lod-row">
+        <label for="interactive-level">Interactive max LOD</label>
+        <input
+          id="interactive-level"
+          type="range"
+          min="0"
+          max="19"
+          step="0.1"
+          value="6"
+        /><output id="interactive-level-value">6</output>
       </div>
       <button id="reset">Reset view</button><button id="retry">Retry</button>
       <label
