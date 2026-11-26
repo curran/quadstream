@@ -46,8 +46,11 @@ removed for the engine only. Original source geometry remains untouched.
 If a global build fails, the demo attempts exact-coordinate-connected groups;
 a rejected group remains entirely original, preserving shared vertices with
 neighbors in that group. This is not independent per-country simplification.
-If a requested LOD fails validation, search finer levels and explicitly report
-effective levels/fallbacks. No arbitrary feature dropping or ring rewinding.
+The requested LOD is rendered directly, even when the spherical validity
+diagnostic rejects a coarse reconstruction; the demo reports invalid coarse
+groups instead of silently promoting them to finer levels. No arbitrary
+feature dropping or ring rewinding. Vertices shared by three or more shapes
+remain critical topology junctions at every LOD.
 Cross-feature intersection checking and differently digitized boundaries are
 still limitations; D3 samples do not prove global spherical validity.
 
@@ -58,7 +61,8 @@ guarantee. A bounded cache, latest-request suppression and worker replacement
 on source changes keep stale geometry out of the view. Last valid global
 geometry remains visible while a level is computed.
 
-Diagnostics distinguish requested/effective levels, vertex counts, fallback,
+Diagnostics distinguish requested/rendered levels, vertex counts, source
+fallback, D3-incompatible coarse groups, strict-validator warnings,
 build/query latency, atlas payload bytes, and last draw duration. Draw-only FPS
 is an estimate, not measured sustained animation FPS. The full atlas is
 downloaded up front. No spherical binary artifacts, network partition streaming,
@@ -84,3 +88,21 @@ synthetic PointerEvents; WebKit exercises the pointer events. These are not
 physical iOS/Android hardware tests. CI uses Node 26 only. Before declaring
 mobile parity, manually verify on iPhone Safari and Android Chrome, including
 consecutive pinches, interruptions, orientation changes and rotation at zoom.
+
+## Fractional LOD and repair
+
+The slider accepts tenth-level values and auto detail derives a continuous
+level from projection scale. Level `n.f` keeps every vertex with priority
+`<= n` plus the fraction `f` of priority `n + 1` vertices whose stable random
+value (a hash of the global vertex ID, never `Math.random()`) is at least
+`1 - f`. Selections are nested and deterministic, and shared arcs make
+identical choices on both sides of a border. Critical vertices and arc
+endpoints are never thinned.
+
+Thinning is only a candidate. `SphericalQuadstreamDataset.query` validates each
+feature and promotes every arc of an invalid feature to the next integer level
+until it is valid. Arcs are shared, so neighbours stay identical.
+`promotedArcs` reports how many arcs were promoted. Features that remain
+invalid at full detail (malformed source) are isolated by the globe layer.
+Small (<30 vertex) dips in vertex count can occur at a fractional level where
+repair promotes arcs.

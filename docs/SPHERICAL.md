@@ -6,10 +6,13 @@ convention. This is a separate in-memory API: existing `buildQuadstream`,
 planar adapters, and v1 binary partitions retain their original semantics.
 
 ```js
-import { buildSphericalQuadstream, importSphericalTopoJSON } from '@quadstream/core';
-const countries = importSphericalTopoJSON(atlas, 'countries');
+import {
+  buildSphericalQuadstream,
+  importSphericalTopoJSON,
+} from "@quadstream/core";
+const countries = importSphericalTopoJSON(atlas, "countries");
 const globe = buildSphericalQuadstream(countries);
-const {geojson, usedFallback} = globe.query({level: 4});
+const { geojson, usedFallback } = globe.query({ level: 4 });
 ```
 
 The named TopoJSON decoder supports signed arcs, quantized transforms, feature
@@ -41,12 +44,12 @@ spherical arrangement solver; near-degenerate geometry is not a production
 correctness claim. Cross-feature intersections between unrelated arcs and
 multipolygon component overlaps are not yet checked globally.
 
-All features are reconstructed globally. If any simplified path fails the
-spherical reference checks, every feature uses its original full-detail
-coordinates (modulo cyclic ring starts and exact seam aliases). Raw BLG
-selections are nested, but validated output need not be monotonic after a
-fallback. No geographic viewport culling is permitted yet; topology bounds
-are diagnostic only. The spherical dataset intentionally does not implement
+All features are reconstructed globally at the requested BLG level. Invalid
+features are repaired by promoting their shared arcs to finer levels
+(`promotedArcs`); `valid: false` is returned only if a feature stays invalid
+at full detail, never replaced by a global full-detail fallback. Vertices shared by three or more shapes remain critical
+topology junctions. No geographic viewport culling is permitted yet; topology
+bounds are diagnostic only. The spherical dataset intentionally does not implement
 the planar partition/session interface. A versioned spherical artifact format,
 independent D3/robust spherical predicate comparison, real atlas benchmarks,
 globe integration, and visibility optimization remain separate work. Do not
@@ -54,5 +57,5 @@ serialize spherical results through the planar v1 partition API.
 
 The Node test suite includes exact seam and pole aliases, six faces, boundary
 tie handling, seeded occupancy, winding, holes, crossing and ambiguous rings,
-reverse arcs, nested BLG selections, global fallback, named transformed
+reverse arcs, nested BLG selections, diagnostic invalid coarse levels, named transformed
 TopoJSON, and planar v1 round trips. Run `npm run check` on Node 26, matching CI.

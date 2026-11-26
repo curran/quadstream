@@ -1,22 +1,125 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Quadstream progressive map</title>
-<link rel="stylesheet" href="../../node_modules/maplibre-gl/dist/maplibre-gl.css">
-<style>
-body{font:16px system-ui,sans-serif;background:#f8fafc;color:#172433;margin:0 auto;padding:1rem;max-width:1000px}h1{font-size:1.5rem}fieldset{display:flex;flex-wrap:wrap;gap:1rem;align-items:center;border:1px solid #9caab8;margin:1rem 0;padding:.8rem}label{display:flex;gap:.5rem;align-items:center}button,select,input{font:inherit}button:focus-visible,canvas:focus-visible{outline:3px solid #145cb1}canvas,#map{width:100%;height:auto;aspect-ratio:2/1;background:#e4edf5;display:block;touch-action:none}#map{height:420px;aspect-ratio:auto}[hidden]{display:none!important}#status{min-height:3em}small{display:block}
-</style></head><body>
-<h1>Quadstream progressive map</h1>
-<p>Explore geometry detail and progressive loading. The default world is schematic, not authoritative geographic data.</p>
-<fieldset><legend>Map controls</legend>
-<label>Renderer <select id="renderer"><option value="canvas">Canvas</option><option value="maplibre">MapLibre</option></select></label>
-<label>Detail <input id="level" type="range" min="0" max="15" value="8"><output id="level-value">8</output></label>
-<label>Zoom <input id="zoom" type="range" min="1" max="8" step="1" value="1"></label>
-<label><input id="shared" type="checkbox" checked> Shared edges</label>
-<label><input id="slow" type="checkbox"> Simulated slow network</label>
-<button id="reset">Reset view</button><button id="retry">Retry</button>
-<label>Local GeoJSON / TopoJSON <input id="file" type="file" accept=".json,.geojson,.topojson"></label>
-</fieldset>
-<p id="status" role="status" aria-live="polite">Preparing geometry…</p>
-<canvas id="canvas" width="960" height="480" tabindex="0" aria-label="Interactive map. Arrow keys pan; use the zoom slider to zoom."></canvas>
-<div id="map" hidden aria-label="MapLibre geographic map"></div>
-<small>Canvas uses equirectangular coordinates. Drag or use arrow keys to pan. MapLibre uses longitude/latitude input; only prevalidated planar-compatible data is supported. No data is uploaded.</small>
-<script src="../../node_modules/maplibre-gl/dist/maplibre-gl.js"></script><script type="module" src="./main.mjs"></script></body></html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Quadstream progressive map</title>
+    <link
+      rel="stylesheet"
+      href="../../node_modules/maplibre-gl/dist/maplibre-gl.css"
+    />
+    <style>
+      body {
+        font:
+          16px system-ui,
+          sans-serif;
+        background: #f8fafc;
+        color: #172433;
+        margin: 0 auto;
+        padding: 1rem;
+        max-width: 1000px;
+      }
+      h1 {
+        font-size: 1.5rem;
+      }
+      fieldset {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        align-items: center;
+        border: 1px solid #9caab8;
+        margin: 1rem 0;
+        padding: 0.8rem;
+      }
+      label {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+      button,
+      select,
+      input {
+        font: inherit;
+      }
+      button:focus-visible,
+      canvas:focus-visible {
+        outline: 3px solid #145cb1;
+      }
+      canvas,
+      #map {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 2/1;
+        background: #e4edf5;
+        display: block;
+        touch-action: none;
+      }
+      #map {
+        height: 420px;
+        aspect-ratio: auto;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      #status {
+        min-height: 3em;
+      }
+      small {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Quadstream progressive map</h1>
+    <p>
+      Explore geometry detail and progressive loading. The default world is
+      schematic, not authoritative geographic data.
+    </p>
+    <fieldset>
+      <legend>Map controls</legend>
+      <label
+        >Renderer
+        <select id="renderer">
+          <option value="canvas">Canvas</option>
+          <option value="maplibre">MapLibre</option>
+        </select></label
+      >
+      <label
+        >Detail
+        <input
+          id="level"
+          aria-label="Detail"
+          type="range"
+          min="0"
+          max="15"
+          value="8"
+        /><output id="level-value">8</output></label
+      >
+      <label
+        >Zoom <input id="zoom" type="range" min="1" max="8" step="1" value="1"
+      /></label>
+      <label><input id="shared" type="checkbox" checked /> Shared edges</label>
+      <label><input id="slow" type="checkbox" /> Simulated slow network</label>
+      <button id="reset">Reset view</button><button id="retry">Retry</button>
+      <label
+        >Local GeoJSON / TopoJSON
+        <input id="file" type="file" accept=".json,.geojson,.topojson"
+      /></label>
+    </fieldset>
+    <p id="status" role="status" aria-live="polite">Preparing geometry…</p>
+    <canvas
+      id="canvas"
+      width="960"
+      height="480"
+      tabindex="0"
+      aria-label="Interactive map. Arrow keys pan; use the zoom slider to zoom."
+    ></canvas>
+    <div id="map" hidden aria-label="MapLibre geographic map"></div>
+    <small
+      >Canvas uses equirectangular coordinates. Drag or use arrow keys to pan.
+      MapLibre uses longitude/latitude input; only prevalidated
+      planar-compatible data is supported. No data is uploaded.</small
+    >
+    <script type="module" src="./main.mjs"></script>
+  </body>
+</html>
