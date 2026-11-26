@@ -14,6 +14,20 @@ const count = (g) =>
 export const vertexCount = (fc) =>
   fc.features.reduce((n, f) => n + count(f.geometry), 0);
 const clock = () => performance.now();
+const removeDegenerateRings = (geometry) => {
+  const valid = (ring) =>
+    new Set(ring.slice(0, -1).map(JSON.stringify)).size >= 3;
+  if (geometry.type === "Polygon")
+    return { ...geometry, coordinates: geometry.coordinates.filter(valid) };
+  if (geometry.type === "MultiPolygon")
+    return {
+      ...geometry,
+      coordinates: geometry.coordinates
+        .map((polygon) => polygon.filter(valid))
+        .filter((polygon) => polygon.length),
+    };
+  return geometry;
+};
 export function decodeCountries(source, topojson) {
   const input =
     source.type === "Topology"
@@ -29,7 +43,13 @@ export function decodeCountries(source, topojson) {
     throw new Error(
       "Expected polygon countries FeatureCollection or named countries TopoJSON",
     );
-  return input;
+  return {
+    ...input,
+    features: input.features.map((feature) => ({
+      ...feature,
+      geometry: removeDegenerateRings(feature.geometry),
+    })),
+  };
 }
 function cleanRing(r) {
   const out = [];
@@ -175,9 +195,16 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
     if (cache.has(level))
       return { ...cache.get(level), cached: true, queryMs: 0 };
     const start = clock(),
-      out = [...features];
+      out =
+        level === maxLevel - 1
+          ? [...features]
+          : features.map((feature) => ({
+              ...feature,
+              geometry: removeDegenerateRings(feature.geometry),
+            }));
     let fallbackGroups = 0,
-      invalidGroups = 0;
+      invalidGroups = 0,
+      validatorInvalidGroups = 0;
     const effectiveLevels = [];
     for (const g of groups) {
       if (!g.engine) {
@@ -188,13 +215,17 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
         compatible = selected.geojson.features.every((f, j) =>
           d3Compatible(features[g.indices[j]], f, d3, level === maxLevel - 1),
         );
-      if (!selected.valid || !compatible) invalidGroups++;
+      if (!selected.valid) validatorInvalidGroups++;
+      if (!compatible) invalidGroups++;
       effectiveLevels.push(level);
       for (let j = 0; j < g.indices.length; j++) {
         const i = g.indices[j];
         out[i] = {
           ...features[i],
-          geometry: selected.geojson.features[j].geometry,
+          geometry:
+            level === maxLevel - 1
+              ? selected.geojson.features[j].geometry
+              : removeDegenerateRings(selected.geojson.features[j].geometry),
         };
       }
     }
@@ -208,6 +239,7 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
       queryMs: clock() - start,
       fallbackGroups,
       invalidGroups,
+      validatorInvalidGroups,
       unavailable,
       reasons,
       effectiveLevels,

@@ -56,7 +56,9 @@ function diagnostics() {
       " | fallback groups: " +
       (frame?.fallbackGroups ?? "—") +
       " | invalid groups: " +
-      (frame?.invalidGroups ?? "—"),
+      (frame?.invalidGroups ?? "—") +
+      " | strict-validator groups: " +
+      (frame?.validatorInvalidGroups ?? "—"),
     "Build: " +
       (frame?.buildMs?.toFixed(1) ?? "—") +
       " ms | query: " +
@@ -97,11 +99,16 @@ function schedule() {
 }
 function requestLevel() {
   if (!ready || !latest || $("mode").value === "original") return;
-  const level = $("auto").checked
-    ? (autoLevel = levelForScale(state.scale, autoLevel))
-    : Number($("level").value);
-  $("level").value = String(level);
-  $("level-value").value = String(level);
+  const sliderLevel = Number($("level").value),
+    level = $("auto").checked
+      ? (autoLevel = levelForScale(state.scale, autoLevel))
+      : Math.round(sliderLevel);
+  if ($("auto").checked) $("level").value = String(level);
+  const displayLevel = $("auto").checked
+    ? String(level)
+    : sliderLevel.toFixed(1);
+  $("level-value").value = displayLevel;
+  $("level-value").textContent = displayLevel;
   if (latest.target !== level) {
     setStatus("Refining geometry…", "loading");
     void latest.select(level);
@@ -288,6 +295,7 @@ $("auto").addEventListener("change", () => {
 });
 $("level").addEventListener("input", () => {
   $("level-value").value = $("level").value;
+  $("level-value").textContent = $("level").value;
   requestLevel();
 });
 $("reset").addEventListener("click", reset);

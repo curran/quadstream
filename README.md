@@ -236,13 +236,28 @@ the reference checks accepted that reconstruction, and no full-detail safety
 fallback is applied. See [spherical semantics](docs/SPHERICAL.md) for winding,
 poles, seams, charts, and topology junctions.
 
+Spherical reconstruction applies three additional safeguards:
+
+- vertices shared by three or more feature IDs are critical, preserving
+  multi-shape junctions and shared topology;
+- a vertex is promoted to critical when its removal would reverse a ring's
+  projected winding, collapse its area, or make a small ring fail the spherical
+  validity predicate;
+- closed rings that would reconstruct with fewer than three distinct vertices
+  are restored from their source path rather than emitted as degenerate rings.
+
+These safeguards preserve the requested level's geometry; they do not promote
+the entire query to a finer level. The globe demo separately isolates malformed
+source features, so one invalid atlas feature does not force its whole
+coordinate-connected component to full detail.
+
 ## Geometry support and semantics
 
 Supported: GeoJSON `Polygon`, `MultiPolygon`, `LineString`, and `MultiLineString` features with finite planar `[x, y]` coordinates. Feature properties and IDs are retained. Polygons are returned with closed rings and may have a cyclically rotated starting point.
 
 Coordinates are **planar**, not automatically projected; caller-provided longitude/latitude is interpreted numerically. The current implementation does **not** wrap the antimeridian, transform coordinate reference systems, snap approximately matching vertices, infer shared borders from differently digitized edges, or support `Point`/`GeometryCollection`/3D coordinates. Invalid input rings are rejected. Polygon holes are validated for containment. Geometry validation uses an O(n²) reference implementation and is not yet scalable to very large rings.
 
-A detail level is an integer from `0` (coarsest) through `maxLevel - 1` (finest). More detailed levels form nested vertex subsets _in the BLG hierarchy_. Planar queries retain their existing dataset-wide validity fallback so shared boundaries remain consistent. Spherical queries expose coarse invalidity through `valid: false` and return the requested reconstruction without promotion to full detail. Vertices shared by three or more shapes remain critical topology junctions.
+A detail level is an integer from `0` (coarsest) through `maxLevel - 1` (finest). More detailed levels form nested vertex subsets _in the BLG hierarchy_. Planar queries retain their existing dataset-wide validity fallback so shared boundaries remain consistent. Spherical queries expose coarse invalidity through `valid: false` and return the requested reconstruction without promotion to full detail. Spherical closed rings always retain at least three distinct vertices, and vertices shared by three or more shapes remain critical topology junctions. The globe demo's D3 oracle additionally checks that each rendered ring preserves its source interior/winding interpretation at every tested LOD.
 
 Viewport queries perform **feature-bounds filtering**, not line clipping. Geometry can extend beyond the requested viewport. The lazy loader supports an injected async fetcher, AbortSignal cancellation, bounded concurrency, a raw-byte LRU cache, and newest-view suppression. It does not provide an HTTP client or persistent cache. The partition planner conservatively requests every partition with potentially relevant priority, even when its bounding box is outside the viewport, because a long line may cross the view without any vertices inside it.
 

@@ -62,8 +62,8 @@ on source changes keep stale geometry out of the view. Last valid global
 geometry remains visible while a level is computed.
 
 Diagnostics distinguish requested/rendered levels, vertex counts, source
-fallback, invalid coarse groups, build/query latency, atlas payload bytes, and
-last draw duration. Draw-only FPS
+fallback, D3-incompatible coarse groups, strict-validator warnings,
+build/query latency, atlas payload bytes, and last draw duration. Draw-only FPS
 is an estimate, not measured sustained animation FPS. The full atlas is
 downloaded up front. No spherical binary artifacts, network partition streaming,
 or hemisphere culling are implemented here; no claim of bandwidth savings.

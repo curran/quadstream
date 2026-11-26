@@ -286,6 +286,21 @@ test("dateline and polar rings preserve D3 small-interior winding and complement
     assert.equal(validSphericalPolygon([ring], signature), true);
   }
 });
+test("removing the Bahamas island vertex flips its spherical complement", () => {
+  const ring = [
+    [-77.79137791377913, 27.03920007016424],
+    [-76.99936999369993, 26.590672040281262],
+    [-77.17217172171722, 25.879797426881822],
+    [-77.35577355773557, 26.006739322131722],
+    [-77.34137341373413, 26.52973993056132],
+    [-77.78777787777878, 26.925798643741004],
+    [-77.79137791377913, 27.03920007016424],
+  ];
+  const signature = sphericalPolygonSignature([ring]),
+    simplified = [ring[0], ...ring.slice(2, -1), ring[0]];
+  assert.equal(validSphericalPolygon([ring], signature), true);
+  assert.equal(validSphericalPolygon([simplified], signature), false);
+});
 test("spherical holes must be contained, oppositely oriented and disjoint", () => {
   assert.equal(validSphericalPolygon([shell, hole]), true);
   assert.equal(validSphericalPolygon([shell, [...hole].reverse()]), false);

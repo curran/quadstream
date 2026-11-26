@@ -17,6 +17,16 @@ const feature = (id, coordinates) => ({
   geometry: { type: "Polygon", coordinates: [coordinates] },
 });
 const fc = (...features) => ({ type: "FeatureCollection", features });
+const polygonRings = (geometry) =>
+  geometry.type === "Polygon"
+    ? geometry.coordinates
+    : geometry.type === "MultiPolygon"
+      ? geometry.coordinates.flat()
+      : [];
+const hasMinimumRingVertices = (feature) =>
+  polygonRings(feature.geometry).every(
+    (ring) => new Set(ring.slice(0, -1).map(JSON.stringify)).size >= 3,
+  );
 test("schematic globe reduces vertex count and restores full detail without changing D3 interior", () => {
   const engine = createGlobeGeometry(fixture, d3);
   assert.equal(engine.unavailable, 0);
@@ -199,7 +209,31 @@ test("real pinned 110m atlas retains all countries, IDs, D3 interiors and full-d
       d3Compatible(original.features[i], f, d3),
     ),
   );
-  assert.ok(lod7.invalidGroups >= 0);
+  assert.equal(lod7.invalidGroups, 0);
+  assert.ok(lod7.validatorInvalidGroups >= 0);
+  let previousVertices = 0;
+  for (let level = 7; level < 20; level++) {
+    const result = engine.query(level);
+    assert.deepEqual(
+      result.geojson.features.map((f) => f.id),
+      original.features.map((f) => f.id),
+    );
+    assert.ok(
+      result.geojson.features.every((f, i) =>
+        d3Compatible(original.features[i], f, d3),
+      ),
+      `D3 compatibility failed at LOD ${level}`,
+    );
+    assert.ok(
+      result.geojson.features.every(hasMinimumRingVertices),
+      `minimum ring cardinality failed at LOD ${level}`,
+    );
+    assert.ok(
+      result.vertices >= previousVertices,
+      `vertex count regressed at LOD ${level}`,
+    );
+    previousVertices = result.vertices;
+  }
   assert.ok(
     low.effectiveLevels.every((level) => level === 4),
     JSON.stringify(low.effectiveLevels),

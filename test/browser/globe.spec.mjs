@@ -11,7 +11,8 @@ const ready = async (page) => {
       return (
         document.querySelector("#status").dataset.phase === "ready" &&
         d.mode === "quadstream" &&
-        d.renderedLevel === document.querySelector("#level").value &&
+        Number(d.renderedLevel) ===
+          Math.round(Number(document.querySelector("#level").value)) &&
         !!d.rotation &&
         Number(d.scale) > 0 &&
         Number(d.requests) > 0 &&
@@ -61,7 +62,7 @@ async function manual(page, level) {
   await ready(page);
   await expect(globe(page)).toHaveAttribute(
     "data-rendered-level",
-    String(level),
+    String(Math.round(level)),
   );
 }
 // Compare within one browser, at an identical idle camera and full LOD.
@@ -306,6 +307,18 @@ test("manual levels reduce geometry and return full detail; original toggle draw
   const b = await state(page);
   expect(b.vertices).toBe(b.source);
   await compareFullPixels(page, "controlled fixture");
+});
+test("fractional manual LOD values select the nearest supported level", async ({
+  page,
+}) => {
+  await page.goto(url);
+  await ready(page);
+  await page.locator("#auto").uncheck();
+  await page.locator("#level").fill("7.3");
+  await ready(page);
+  await expect(page.locator("#level")).toHaveValue("7.3");
+  await expect(page.locator("#level-value")).toHaveText("7.3");
+  await expect(globe(page)).toHaveAttribute("data-rendered-level", "7");
 });
 test("default real atlas loads, reduces geometry and matches full-detail pixels across views", async ({
   page,
