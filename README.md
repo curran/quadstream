@@ -484,7 +484,7 @@ polygon predicates.
 | Spherical TopoJSON import | Decode plus spherical signatures and topology validation | Linear geometry storage; includes quadratic polygon checks |
 | Partition assignment and export | O(V + P log P + sum_p(v_p log v_p)) | O(V + P) new records, metadata and binary bytes, sharing existing topology; v_p records in partition p |
 | QSTR encoding/decoding and FNV-1a checksum | O(B) | O(B) output for encoding/decoding, O(1) auxiliary checksum space |
-| Manifest schema and reference validation | O(V + M + R + F + P) | O(V + M + F) conservative working space for IDs, arc copies and path accounting |
+| Manifest schema and reference validation | O(V + M + R + F + P) | O(V + M + R + F + P) conservative working space for IDs, arc copies and path accounting |
 | Required/missing partition planning and diagnostic bounds filter | O(P) | O(P) worst-case key output; loaded membership is expected O(1) |
 | Session construction | O(V + M + P + F log F) | O(V + M + F + P), including global manifest/tree/index data |
 | Session partition ingestion | O(B) | O(B) temporary records and sets, plus retained parsed vertices; repeat loads still checksum the bytes |
