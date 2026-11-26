@@ -11,10 +11,7 @@ const ready = async (page) => {
       return (
         document.querySelector("#status").dataset.phase === "ready" &&
         d.mode === "quadstream" &&
-        Math.abs(
-          Number(d.renderedLevel) -
-            Number(document.querySelector("#level").value),
-        ) < 0.001 &&
+        Math.abs(Number(d.renderedLevel) - Number(d.targetLevel)) < 0.001 &&
         !!d.rotation &&
         Number(d.scale) > 0 &&
         Number(d.requests) > 0 &&
@@ -56,7 +53,6 @@ async function waitScale(page, value) {
     .toBeLessThan(0.001);
 }
 async function manual(page, level) {
-  await page.locator("#auto").uncheck();
   await page.locator("#level").evaluate((el, v) => {
     el.value = String(v);
     el.dispatchEvent(new Event("input", { bubbles: true }));
@@ -310,7 +306,7 @@ test("manual levels reduce geometry and return full detail; original toggle draw
   expect(b.vertices).toBe(b.source);
   await compareFullPixels(page, "controlled fixture");
 });
-test("fractional manual LOD values select partial BLG levels", async ({
+test("fractional target LOD values select partial BLG levels with auto detail", async ({
   page,
 }) => {
   await page.goto(url);
@@ -318,12 +314,31 @@ test("fractional manual LOD values select partial BLG levels", async ({
   const auto = Number(await page.locator("#level").inputValue());
   expect(auto).toBeGreaterThanOrEqual(4);
   expect(Math.abs(auto * 10 - Math.round(auto * 10))).toBeLessThan(1e-6);
-  await page.locator("#auto").uncheck();
+  await expect(page.locator("#auto")).toHaveCount(0);
+  await expect(page.locator("#level")).toBeEnabled();
   await page.locator("#level").fill("7.3");
   await ready(page);
   await expect(page.locator("#level")).toHaveValue("7.3");
   await expect(page.locator("#level-value")).toHaveText("7.3");
   await expect(globe(page)).toHaveAttribute("data-rendered-level", "7.3");
+});
+test("interactive max LOD caps detail while dragging and refines on release", async ({
+  page,
+}) => {
+  await page.goto(url);
+  await ready(page);
+  await manual(page, 12);
+  await page.locator("#interactive-level").fill("5");
+  await expect(page.locator("#interactive-level-value")).toHaveText("5");
+  await pointer(page, "pointerdown", 1, 400, 400);
+  await expect(globe(page)).toHaveAttribute("data-interacting", "true");
+  await expect
+    .poll(async () => (await state(page)).level)
+    .toBeLessThanOrEqual(5);
+  await pointer(page, "pointerup", 1, 400, 400);
+  await expect(globe(page)).toHaveAttribute("data-interacting", "false");
+  await ready(page);
+  await expect(globe(page)).toHaveAttribute("data-rendered-level", "12");
 });
 test("default real atlas loads, reduces geometry and matches full-detail pixels across views", async ({
   page,
