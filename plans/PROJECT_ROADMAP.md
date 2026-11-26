@@ -6,19 +6,19 @@
 
 The accompanying large PR introduces the following components as a **development-preview implementation**:
 
-| Original planned scope | Delivered by this PR | Important limits |
-| --- | --- | --- |
-| PR1: TypeScript groundwork | Strict ESM source, declarations, build, tests, documentation, preservation of original code | npm install and CI status must be independently verified; license unresolved |
-| PR2: geometry primitives/topology | Exact-coordinate shared arcs, stable IDs, line/polygon/multipolygon paths, critical junctions | No snapped edges or geographic wrap; quadratic validity reference |
-| PR3: sparse quadtree | Deterministic occupancy/priorities, bounded levels, explicit overflow | Not optimized for tens of millions of vertices |
-| PR4: BLG hierarchy | Ordered min-Cartesian tree, iterative multiresolution traversal, invariant checker | Batch construction only; no online BLG mutations |
-| PR5: combined engine | Shared arc multiresolution reconstruction, validation and full-geometry fallback | Invalid simplifications fall back globally, harming compression and monotonicity |
-| PR6: viewport index | Deterministic packed static bounding-box index | No segment clipping or dynamic updates |
-| PR7: binary/partition foundation | Versioned manifest and partitions, length/checksum/ID checks, idempotent partial session, optional cancellable lazy loader with bounded concurrency and memory LRU | No HTTP-specific CDN/persistent caching or cryptographic authentication |
+| Original planned scope            | Delivered by this PR                                                                                                                                               | Important limits                                                                 |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| PR1: TypeScript groundwork        | Strict ESM source, declarations, build, tests, documentation, preservation of original code                                                                        | npm install and CI status must be independently verified; MIT selected; provenance review pending     |
+| PR2: geometry primitives/topology | Exact-coordinate shared arcs, stable IDs, line/polygon/multipolygon paths, critical junctions                                                                      | No snapped edges or geographic wrap; quadratic validity reference                |
+| PR3: sparse quadtree              | Deterministic occupancy/priorities, bounded levels, explicit overflow                                                                                              | Not optimized for tens of millions of vertices                                   |
+| PR4: BLG hierarchy                | Ordered min-Cartesian tree, iterative multiresolution traversal, invariant checker                                                                                 | Batch construction only; no online BLG mutations                                 |
+| PR5: combined engine              | Shared arc multiresolution reconstruction, validation and full-geometry fallback                                                                                   | Invalid simplifications fall back globally, harming compression and monotonicity |
+| PR6: viewport index               | Deterministic packed static bounding-box index                                                                                                                     | No segment clipping or dynamic updates                                           |
+| PR7: binary/partition foundation  | Versioned manifest and partitions, length/checksum/ID checks, idempotent partial session, optional cancellable lazy loader with bounded concurrency and memory LRU | No HTTP-specific CDN/persistent caching or cryptographic authentication          |
 
 ### Mandatory sign-off before PR8
 
-Run a fresh checkout `npm install`, `npm run check` and the demo on supported Node versions. Review missing lockfile/dependency pinning. The modern MIT license decision is recorded; confirm ownership/provenance and preserve all historical third-party notices before a public npm release. Confirm algorithm behavior with the UDCVis Vietnam, Africa and Florida regression examples and capture realistic country-boundary benchmarks before claiming production-ready topology preservation. Record reproducible commands and actual measurements.
+Run a fresh checkout `npm ci`, `npm run check` and the demo on supported Node versions. Verify the committed lockfile and dependency pinning. The modern MIT license decision is recorded; confirm ownership/provenance and preserve all historical third-party notices before a public npm release. Confirm algorithm behavior with the UDCVis Vietnam, Africa and Florida regression examples and capture realistic country-boundary benchmarks before claiming production-ready topology preservation. Record reproducible commands and actual measurements.
 
 ## Follow-on standalone PRs
 
@@ -50,6 +50,8 @@ Run a fresh checkout `npm install`, `npm run check` and the demo on supported No
 
 PR9b-1 established the opt-in spherical reference engine and cube-face priorities. PR9b-2 uses the maintainer's simpler MIT-licensed VizHub pointer-driven globe, preserving Canvas rotation and pinch behavior while removing all data overlays. It adds an in-memory worker, real atlas comparison, conservative fallback, and Node 26/Chromium/WebKit regression tests. See [globe documentation](../docs/GLOBE.md). PR9b-3 remains responsible for scalable spherical validation, measured screen-space error, conservative visibility, and versioned progressive artifacts; physical-device acceptance and performance benchmarking remain outstanding.
 
+See also [fractional LOD topology](FRACTIONAL_LOD_TOPOLOGY_PLAN.md) and [globe LOD stabilization](GLOBE_LOD_STABILIZATION.md). The merged globe supports fractional LOD and shared-arc repair; production-scale validation remains outstanding.
+
 ### Release preparation — README, MIT scope and npm package
 
 The maintainer selected MIT for the modern implementation; historical licensing
@@ -67,7 +69,7 @@ sign-off are confirmed. This PR does not publish to npm or change algorithms.
 - Design and verify safe simplification refinements rather than whole-view fallback; ensure adjacency, ring containment and intersection invariants across zoom levels.
 - Measure simplification quality and compare against Tippecanoe, TopoJSON simplification and unsimplified GeoJSON at 10k / 100k / 1M / 10M vertices, using measured memory, time, bytes and topology validity.
 - Audit malformed manifest and binary inputs; add crypto integrity for remote transport, quotas, OOM prevention, fuzzing and corpus coverage.
-- Complete provenance review, lockfile, npm provenance/release verification, package API compatibility policy, changelog, docs website and benchmark publication.
+- Complete provenance review, lockfile verification, npm provenance/release verification, package API compatibility policy, changelog, docs website and benchmark publication.
 
 **Acceptance:** public v0.1.0 is only released after signed-off license, reproducible installs, all relevant tests passing and published benchmark results. State limitations prominently if reference performance targets are not met.
 

@@ -34,7 +34,7 @@ Until then, use a checkout and build the package:
 ```sh
 git clone https://github.com/curran/quadstream.git
 cd quadstream
-npm install
+npm ci
 npm run build
 node examples/hello.mjs
 npm pack
@@ -115,11 +115,13 @@ import { buildSphericalQuadstream, importSphericalTopoJSON } from '@quadstream/c
 
 const countries = importSphericalTopoJSON(atlas, 'countries');
 const globe = buildSphericalQuadstream(countries, { maxLevel: 20 });
-const { geojson, usedFallback } = globe.query({ level: 8 });
+const { geojson, valid, promotedArcs } = globe.query({ level: 8.5 });
 // Supply geojson to your D3 geoPath renderer.
 ```
 
-Spherical queries reconstruct global geometry in memory. They do not support
+Spherical queries reconstruct global geometry in memory. Fractional detail uses
+stable vertex-ID hashing; shared-arc promotion repairs invalid features without
+a global full-detail fallback. They do not support
 planar viewport bounds, v1 partition serialization or network streaming.
 They may reject inputs that cannot be validated in the reference hemisphere
 chart. See [spherical semantics](https://github.com/curran/quadstream/blob/master/docs/SPHERICAL.md).
@@ -171,6 +173,169 @@ for input restrictions, bounds, exit codes and static staging.
 See the [export list](https://github.com/curran/quadstream/blob/master/src/index.ts)
 and included TypeScript declarations for complete signatures and utilities.
 
+## Detailed API reference
+
+The package exports its public API from `src/index.ts` and ships declarations
+with the build. The signatures below describe the stable development-preview
+surface; TypeScript is the authoritative source for exact structural types.
+
+### Core planar dataset
+
+```ts
+buildQuadstream(
+  input: FeatureCollection,
+  options?: { maxLevel?: number },
+): QuadstreamDataset
+
+dataset.query(options?: {
+  level?: number;
+  bounds?: Bounds;
+  validate?: boolean;
+}): QueryResult
+```
+
+`QuadstreamDataset` exposes `topology`, `quadtree`, and `arcTrees` for
+inspection. `QueryResult` contains `geojson`, the requested `level`, `valid`,
+`usedFallback`, `selectedFeatures`, and `selectedVertices`. `level` ranges
+from `0` through `maxLevel - 1`; the default is the finest level. `bounds`
+selects features by intersecting feature bounds and does not clip geometry.
+Set `validate: false` only when the caller accepts unvalidated reconstructed
+geometry.
+
+The public planar model includes `Position`, `Bounds`, `Geometry`, `Feature`,
+`FeatureCollection`, `Topology`, `TopologyFeature`, `Arc`, `TopologyPath`,
+`Vertex`, `SparseQuadtree`, `QueryOptions`, and `QueryResult`. Supported
+geometries are `Polygon`, `MultiPolygon`, `LineString`, and
+`MultiLineString`.
+
+### Topology, priorities, and geometry helpers
+
+- `buildTopology(collection)` deduplicates exact coordinates, shared arcs, and
+  feature metadata.
+- `buildSparseQuadtree(vertices, bounds, maxLevel)`, `cellKey(level, i, j)`,
+  and `cellAddress(key)` expose deterministic sparse spatial priorities.
+- `buildBlgTree(levels)`, `selectBlgPositions(tree, maxLevel)`, and
+  `assertBlgInvariants(tree)` expose the ordered vertex-selection structure.
+- `createSpatialIndex(items)` builds a packed bounds index whose `query(bounds)`
+  returns matching values.
+- `boundsOf(points)`, `intersects(a, b)`, `simpleClosedRing(ring)`,
+  `segmentsIntersect(a, b, c, d)`, `pointInRing(point, ring)`, and
+  `validPolygon(rings)` provide the reference planar predicates.
+
+These lower-level functions are useful for diagnostics, custom pipelines, and
+tests. They enforce the same finite-coordinate and exact-coordinate policies as
+the dataset builder.
+
+### GeoJSON and TopoJSON
+
+- `importGeoJSON(input)` validates and normalizes a GeoJSON
+  `FeatureCollection` or `Feature`.
+- `exportGeoJSON(collection)` returns a serializable GeoJSON collection.
+- `importTopoJSON(input)` decodes unquantized or quantized TopoJSON into a
+  feature collection.
+- `exportTopoJSON(collection)` writes unquantized TopoJSON with shared arcs.
+- `decodeTopoJSON(input, objectName, position?)` decodes one named TopoJSON
+  object with an optional coordinate normalizer.
+
+`TopoJSONTopology` is exported for typed adapter integration. TopoJSON arc
+references use standard zero-based indices and bitwise-complement reversal.
+Feature IDs and properties are preserved by the adapters; the core normalizes
+missing IDs and null properties during topology construction.
+
+### Partitioned artifacts and progressive loading
+
+```ts
+exportPartitions(dataset, options?: { fileDepth?: number }): PartitionBundle
+encodePartition(records): Uint8Array
+decodePartition(bytes, maxRecords?): PartitionRecord[]
+validateManifest(input): QuadstreamManifest
+```
+
+`exportPartitions` returns a manifest and `Map<string, Uint8Array>` containing
+deterministic QSTR v1 partitions. `checksum(bytes)` computes the non-authenticating
+FNV-1a corruption check. `requiredPartitionKeys(manifest, level)` returns all
+partitions needed for a level, while `partitionsWithVerticesInBounds(manifest,
+bounds)` is diagnostic vertex coverage and is not a safe request planner.
+`MANIFEST_VERSION` is the current artifact version.
+
+`QuadstreamSession` validates a manifest in its constructor, then accepts
+partitions with `load(key, bytes)`. Its `loadedKeys`, `missingKeys(level)`, and
+`query(options)` APIs report partial results through `complete`, `missingKeys`,
+`omittedFeatures`, and `usedFallback`.
+
+`QuadstreamLoader` wraps a session with an injected `PartitionFetcher`:
+
+```ts
+type PartitionFetcher = (
+  key: string,
+  context: { signal: AbortSignal },
+) => Promise<Uint8Array>;
+
+loader.ensureLevel(level, { signal? }): Promise<void>
+loader.loadLatest(query?): Promise<SessionQueryResult>
+loader.cancelLatest(): void
+```
+
+`LoaderOptions` limits per-request concurrency (default `4`, maximum `32`) and
+the optional raw-byte LRU cache (default 16 MiB). `fetchFromBundle(bundle)`
+provides an in-memory fetcher for tests and demos. Fetching, HTTP, retries,
+persistent caching, and authentication remain application responsibilities.
+
+### Progressive map client and MapLibre adapter
+
+`ProgressiveMap` stages requests at coarse, intermediate, and target levels.
+Implement `ProgressiveMapClient` with `request(query, onFrame)` and `cancel()`
+when integrating another renderer. Each `MapFrame` reports the session result,
+target level, whether it is final, and loaded/total partition counts.
+
+`attachMapLibre(map, loader, options?)` connects the loader to a MapLibre-like
+map interface, and `mapLibreBounds(bounds)` converts the current map bounds to
+the planar query bounds. The adapter intentionally has no MapLibre runtime
+dependency; `MapLibreLike` and `MapLibreAdapterOptions` describe the minimal
+integration surface. See [the progressive map guide](docs/PROGRESSIVE-MAP.md).
+
+### Spherical geographic API
+
+```ts
+importSphericalTopoJSON(input, objectName): FeatureCollection
+buildSphericalQuadstream(
+  input: FeatureCollection,
+  options?: { maxLevel?: number },
+): SphericalQuadstreamDataset
+dataset.query(options?: { level?: number }): QueryResult
+```
+
+The spherical API uses longitude/latitude degrees, D3's clockwise-small-interior
+winding convention, minor great-circle arcs, and six cube-face sparse
+priorities. It is intentionally separate from planar partitions and viewport
+culling. Exported helpers include `canonicalLonLat`, `lonLatVector`,
+`angularDistance`, `validGreatCirclePath`, `sphericalCellAddress`,
+`buildSphericalPriorities`, `sphericalChart`, `projectSpherical`,
+`sphericalPolygonSignature`, and `validSphericalPolygon`. Supporting types are
+`UnitVector`, `CubeFace`, `SphericalCell`, `SphericalPriorities`,
+`SphericalChart`, `SphericalPolygonSignature`, and `SphericalQueryOptions`.
+Spherical queries support fractional levels. Invalid features are repaired by
+promoting shared arcs to finer levels; `promotedArcs` reports the number of
+promoted arcs. `valid: false` indicates geometry that remains invalid at full
+detail. No global full-detail fallback is applied. See [spherical semantics](docs/SPHERICAL.md) for winding,
+poles, seams, charts, and topology junctions.
+
+Spherical reconstruction applies three additional safeguards:
+
+- vertices shared by three or more feature IDs are critical, preserving
+  multi-shape junctions and shared topology;
+- a vertex is promoted to critical when its removal would reverse a ring's
+  projected winding, collapse its area, or make a small ring fail the spherical
+  validity predicate;
+- closed rings that would reconstruct with fewer than three distinct vertices
+  are restored from their source path rather than emitted as degenerate rings.
+
+These safeguards and shared-arc repair preserve shared topology without promoting
+the entire query to a finer level. The globe demo separately isolates malformed
+source features, so one invalid atlas feature does not force its whole
+coordinate-connected component to full detail.
+
+
 ## How it works
 
 Quadstream deduplicates exact shared vertices and arcs, assigns deterministic
@@ -192,7 +357,7 @@ from topology metadata.
 - Full-detail reconstruction retains coordinates and order subject to documented
   normalization and cyclic ring starts. Coarse BLG subsets are nested, but
   validated output may not be monotonic when a fallback occurs.
-- By default, invalid simplified geometry triggers a global full-detail
+- By default, invalid planar simplified geometry triggers a global full-detail
   fallback, not independent per-feature simplification. Partial results are
   explicit; validation does not prove global cross-feature topology.
 - Reference polygon validity checks are quadratic; large-scale performance,
@@ -207,14 +372,15 @@ for implementation details and planned work.
 ## Development
 
 ```sh
-npm install
+npm ci
 npm run check
+npm run lint
 npm run test:package
 npx playwright install --with-deps chromium webkit
 npm run test:globe:browser
 ```
 
-CI retains Node 26 and Chromium/WebKit globe regression tests and adds
+Use `npm run prettier` to format maintained sources. CI retains Node 26 and Chromium/WebKit globe regression tests and adds
 packed-package verification for Node 20 and 26. The real-atlas globe tests
 compare original and full-resolution reconstruction across multiple views and
 zoom levels. Physical mobile-device validation and production benchmarks remain

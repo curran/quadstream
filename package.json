@@ -25,6 +25,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prettier": "prettier --write .",
+    "lint": "eslint .",
     "test": "npm run build && node --test test/*.test.mjs",
     "check": "npm run typecheck && npm run test",
     "demo:map": "node examples/progressive/server.mjs",
@@ -35,10 +37,15 @@
     "test:package": "node scripts/test-package.mjs"
   },
   "devDependencies": {
-    "typescript": "^5.8.3",
-    "maplibre-gl": "5.6.2",
-    "@playwright/test": "1.55.1",
-    "d3": "7.8.2",
+    "typescript": "^6.0.3",
+    "prettier": "3.10.1",
+    "eslint": "10.15.0",
+    "@eslint/js": "10.0.1",
+    "typescript-eslint": "8.74.0",
+    "globals": "17.14.0",
+    "maplibre-gl": "6.19.0",
+    "@playwright/test": "1.65.1",
+    "d3": "7.9.2",
     "topojson-client": "3.1.0",
     "world-atlas": "2.0.2"
   },
