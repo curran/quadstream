@@ -2,12 +2,19 @@
 import "../../node_modules/d3/dist/d3.min.js";
 import "../../node_modules/topojson-client/dist/topojson-client.min.js";
 import { createGlobeGeometry, decodeCountries } from "./geometry.mjs";
+import { packGeometry } from "./wire.mjs";
 let engine;
 let queue = [];
 let running = false;
 function respond(m, work) {
   try {
-    self.postMessage({ id: m.id, ...work() });
+    const payload = work();
+    const transfer =
+      payload.coords && payload.meta
+        ? [payload.coords.buffer, payload.meta.buffer]
+        : undefined;
+    if (transfer) self.postMessage({ id: m.id, ...payload }, transfer);
+    else self.postMessage({ id: m.id, ...payload });
   } catch (e) {
     self.postMessage({ id: m.id, error: String(e.message ?? e) });
   }
@@ -40,7 +47,10 @@ async function drain() {
       else
         respond(m, () => {
           if (!engine) throw new Error("Geometry worker not initialized");
-          return { frame: engine.query(m.level) };
+          const frame = engine.query(m.level);
+          const { geojson, ...rest } = frame;
+          const { coords, meta } = packGeometry(geojson);
+          return { frame: rest, coords, meta };
         });
     }
   }

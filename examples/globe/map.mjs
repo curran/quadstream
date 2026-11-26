@@ -4,6 +4,8 @@ export function createGlobeRenderer(d3, ctx) {
     path = d3.geoPath(projection, ctx),
     graticule = d3.geoGraticule()();
   const sphere = { type: "Sphere" };
+  let oceanKey;
+  let ocean;
   function drawShape(g, fill, stroke) {
     ctx.beginPath();
     path(g);
@@ -28,17 +30,21 @@ export function createGlobeRenderer(d3, ctx) {
       ctx.shadowBlur = 12;
       ctx.shadowColor = "#8b7cf6";
     }
-    const ocean = ctx.createRadialGradient(
-      width * 0.35,
-      height * 0.3,
-      0,
-      width * 0.35,
-      height * 0.3,
-      Math.max(width, height) * 0.75,
-    );
-    ocean.addColorStop(0, "#2e2a5c");
-    ocean.addColorStop(0.6, "#1e1c46");
-    ocean.addColorStop(1, "#12122c");
+    const key = `${width}x${height}`;
+    if (key !== oceanKey) {
+      oceanKey = key;
+      ocean = ctx.createRadialGradient(
+        width * 0.35,
+        height * 0.3,
+        0,
+        width * 0.35,
+        height * 0.3,
+        Math.max(width, height) * 0.75,
+      );
+      ocean.addColorStop(0, "#2e2a5c");
+      ocean.addColorStop(0.6, "#1e1c46");
+      ocean.addColorStop(1, "#12122c");
+    }
     ctx.fillStyle = ocean;
     ctx.strokeStyle = "#b7a9f5";
     ctx.lineWidth = 1.5;
@@ -52,7 +58,12 @@ export function createGlobeRenderer(d3, ctx) {
     ctx.strokeStyle = "#8f86d9";
     ctx.globalAlpha = 0.9;
     ctx.lineWidth = 0.5;
-    for (const f of geojson?.features ?? []) drawShape(f, true, true);
+    if (geojson?.features?.length) {
+      ctx.beginPath();
+      path(geojson);
+      ctx.fill();
+      ctx.stroke();
+    }
     ctx.restore();
   };
 }

@@ -1,9 +1,12 @@
+import { unpackGeometry } from "./wire.mjs";
+
 export class GlobeWorkerClient {
   constructor(worker) {
     this.worker = worker;
     this.id = 0;
     this.pending = new Map();
     this.closed = false;
+    this.original = null;
     this.message = ({ data }) => {
       const p = this.pending.get(data.id);
       if (!p) return;
@@ -32,11 +35,20 @@ export class GlobeWorkerClient {
       }
     });
   }
-  init(source) {
-    return this.send("init", { source });
+  async init(source) {
+    const res = await this.send("init", { source });
+    this.original = res.original;
+    return res;
   }
   async query(level) {
-    return (await this.send("query", { level })).frame;
+    const res = await this.send("query", { level });
+    if (res.coords && res.meta) {
+      return {
+        ...res.frame,
+        geojson: unpackGeometry(this.original, res.coords, res.meta),
+      };
+    }
+    return res.frame;
   }
   dispose(error = new DOMException("Cancelled", "AbortError")) {
     if (this.closed) return;

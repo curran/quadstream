@@ -3,7 +3,11 @@ import {
   attachGlobeInteraction,
   resizedView,
 } from "./interaction.mjs";
-import { levelForScale, createLatestGeometry } from "./lod.mjs";
+import {
+  levelForScale,
+  quantizeAutoLevel,
+  createLatestGeometry,
+} from "./lod.mjs";
 import { createGlobeRenderer } from "./map.mjs";
 import { GlobeWorkerClient } from "./client.mjs";
 import { fixture } from "./fixture.mjs";
@@ -101,8 +105,10 @@ function requestLevel() {
   if (!ready || !latest || $("mode").value === "original") return;
   const sliderLevel = Number($("level").value),
     level = $("auto").checked
-      ? (autoLevel =
-          Math.round(levelForScale(state.scale, autoLevel) * 10) / 10)
+      ? (autoLevel = quantizeAutoLevel(
+          levelForScale(state.scale, autoLevel),
+          state.interacting,
+        ))
       : sliderLevel;
   if ($("auto").checked) $("level").value = String(level);
   const displayLevel = $("auto").checked
@@ -118,7 +124,7 @@ function requestLevel() {
 function update(patch) {
   Object.assign(state, patch);
   schedule();
-  if ("scale" in patch) requestLevel();
+  if ("scale" in patch || patch.interacting === false) requestLevel();
 }
 const gesture = createGlobeInteraction({
   getState: () => state,

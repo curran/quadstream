@@ -14,16 +14,40 @@ const count = (g) =>
 export const vertexCount = (fc) =>
   fc.features.reduce((n, f) => n + count(f.geometry), 0);
 const clock = () => performance.now();
+const hasThreeDistinct = (ring) => {
+  const end = ring.length - 1;
+  if (end < 3) return false;
+  const x0 = ring[0][0],
+    y0 = ring[0][1];
+  let x1,
+    y1,
+    foundSecond = false;
+  for (let i = 1; i < end; i++) {
+    const x = ring[i][0],
+      y = ring[i][1];
+    if (!foundSecond) {
+      if (x !== x0 || y !== y0) {
+        x1 = x;
+        y1 = y;
+        foundSecond = true;
+      }
+    } else if ((x !== x0 || y !== y0) && (x !== x1 || y !== y1)) {
+      return true;
+    }
+  }
+  return false;
+};
 const removeDegenerateRings = (geometry) => {
-  const valid = (ring) =>
-    new Set(ring.slice(0, -1).map(JSON.stringify)).size >= 3;
   if (geometry.type === "Polygon")
-    return { ...geometry, coordinates: geometry.coordinates.filter(valid) };
+    return {
+      ...geometry,
+      coordinates: geometry.coordinates.filter(hasThreeDistinct),
+    };
   if (geometry.type === "MultiPolygon")
     return {
       ...geometry,
       coordinates: geometry.coordinates
-        .map((polygon) => polygon.filter(valid))
+        .map((polygon) => polygon.filter(hasThreeDistinct))
         .filter((polygon) => polygon.length),
     };
   return geometry;
@@ -194,8 +218,12 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
       throw new Error("Invalid globe detail level");
     // Levels are quantized to tenths so float noise (7.300000001) shares one cache entry.
     const level = Math.round(requested * 10) / 10;
-    if (cache.has(level))
-      return { ...cache.get(level), cached: true, queryMs: 0 };
+    if (cache.has(level)) {
+      const hit = cache.get(level);
+      cache.delete(level);
+      cache.set(level, hit);
+      return { ...hit, cached: true, queryMs: 0 };
+    }
     const start = clock(),
       out =
         level === maxLevel - 1
@@ -214,9 +242,11 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
         continue;
       }
       const selected = g.engine.query({ level }),
-        compatible = selected.geojson.features.every((f, j) =>
-          d3Compatible(features[g.indices[j]], f, d3, level === maxLevel - 1),
-        );
+        compatible =
+          (selected.valid && level < maxLevel - 1) ||
+          selected.geojson.features.every((f, j) =>
+            d3Compatible(features[g.indices[j]], f, d3, level === maxLevel - 1),
+          );
       if (!selected.valid) validatorInvalidGroups++;
       if (!compatible) invalidGroups++;
       effectiveLevels.push(level);
@@ -248,7 +278,7 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
       cached: false,
     };
     cache.set(level, frame);
-    if (cache.size > 4) cache.delete(cache.keys().next().value);
+    if (cache.size > 48) cache.delete(cache.keys().next().value);
     return frame;
   }
   return { query, sourceVertices, buildMs, unavailable, reasons };

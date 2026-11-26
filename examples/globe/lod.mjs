@@ -19,6 +19,11 @@ export function levelForScale(
     return priorBand;
   return clamped;
 }
+export function quantizeAutoLevel(level, interacting = false) {
+  return interacting
+    ? Number((Math.round(level * 5) / 5).toFixed(1))
+    : Number((Math.round(level * 10) / 10).toFixed(1));
+}
 export function createLatestGeometry({ request, onFrame, onError = () => {} }) {
   let generation = 0,
     desired = null,
