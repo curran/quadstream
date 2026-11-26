@@ -182,6 +182,7 @@ test("real pinned 110m atlas retains all countries, IDs, D3 interiors and full-d
     engine = createGlobeGeometry(original, d3);
   assert.ok(original.features.length > 100);
   const low = engine.query(4),
+    lod7 = engine.query(7),
     full = engine.query(19);
   assert.equal(full.geojson.features.length, original.features.length);
   assert.deepEqual(
@@ -193,6 +194,12 @@ test("real pinned 110m atlas retains all countries, IDs, D3 interiors and full-d
       d3Compatible(original.features[i], f, d3, true),
     ),
   );
+  assert.ok(
+    lod7.geojson.features.every((f, i) =>
+      d3Compatible(original.features[i], f, d3),
+    ),
+  );
+  assert.ok(lod7.invalidGroups >= 0);
   assert.ok(
     low.effectiveLevels.every((level) => level === 4),
     JSON.stringify(low.effectiveLevels),

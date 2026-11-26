@@ -112,6 +112,25 @@ test("full detail exactly recovers original cyclic paths", () => {
   }
 });
 
+test("reconstructed closed rings retain at least three distinct vertices", () => {
+  const dataset = buildQuadstream(
+    collection(rect("triangle", 0, 0, 10, 10), rect("adjacent", 10, 0, 20, 10)),
+    { maxLevel: 8 },
+  );
+  for (let level = 0; level < dataset.quadtree.maxLevel; level++) {
+    const result = dataset.query({ level });
+    for (const feature of result.geojson.features) {
+      const ring = feature.geometry.coordinates[0];
+      assert.equal(ring[0][0], ring.at(-1)[0]);
+      assert.equal(ring[0][1], ring.at(-1)[1]);
+      assert.ok(
+        new Set(ring.slice(0, -1).map(JSON.stringify)).size >= 3,
+        `level ${level} collapsed a closed ring`,
+      );
+    }
+  }
+});
+
 test("all supported geometry forms, holes, and multiline are reconstructed", () => {
   const fc = collection(
     {

@@ -1,9 +1,11 @@
 import { buildTopologyWithPolicy } from "./topology.js";
 import { decodeTopoJSON } from "./adapters.js";
 import { buildArcTrees, reconstructFeature } from "./reconstruct.js";
+import { signedArea } from "./geometry.js";
 import {
   canonicalLonLat,
   buildSphericalPriorities,
+  projectSpherical,
   validGreatCirclePath,
   sphericalPolygonSignature,
   validSphericalPolygon,
@@ -88,6 +90,65 @@ function topology(input: FeatureCollection): Topology {
     line: validGreatCirclePath,
   });
 }
+function preserveSphericalValidity(
+  topology: Topology,
+  source: FeatureCollection,
+  signatures: SphericalPolygonSignature[][],
+) {
+  const vertexByPosition = new Map(
+    topology.vertices.map((v) => [
+      JSON.stringify(canonicalLonLat([v.x, v.y])),
+      v,
+    ]),
+  );
+  source.features.forEach((feature, featureIndex) => {
+    polygons(feature.geometry).forEach((rings, polygonIndex) => {
+      rings.forEach((ring, ringIndex) => {
+        const ids = ring
+          .slice(0, -1)
+          .map((p) => vertexByPosition.get(JSON.stringify(p))?.id);
+        const projected = ring.map((p) =>
+            projectSpherical(p, signatures[featureIndex]![polygonIndex]!.chart),
+          ),
+          area = signedArea(projected),
+          sourceSign =
+            signatures[featureIndex]![polygonIndex]!.signs[ringIndex]!;
+        ids.forEach((id, i) => {
+          if (id === undefined) return;
+          const previous =
+              projected[(i + projected.length - 2) % (projected.length - 1)]!,
+            current = projected[i]!,
+            next = projected[(i + 1) % (projected.length - 1)]!,
+            removed =
+              current[0] * next[1] -
+              current[1] * next[0] -
+              (previous[0] * current[1] - previous[1] * current[0]) +
+              (previous[0] * next[1] - previous[1] * next[0]),
+            candidateArea = area - removed / 2;
+          let invalidCandidate = false;
+          if (ring.length <= 32) {
+            const points = [...ring.slice(0, i), ...ring.slice(i + 1, -1)],
+              candidate = [...points, points[0]!],
+              candidateRings = rings.map((r, j) =>
+                j === ringIndex ? candidate : r,
+              );
+            invalidCandidate = !validSphericalPolygon(
+              candidateRings,
+              signatures[featureIndex]?.[polygonIndex],
+            );
+          }
+          if (
+            ring.length <= 4 ||
+            Math.sign(candidateArea) !== sourceSign ||
+            candidateArea === 0 ||
+            invalidCandidate
+          )
+            topology.vertices[id]!.critical = true;
+        });
+      });
+    });
+  });
+}
 /** Explicit geographic import: decode only the selected object and validate minor arcs. */
 export function importSphericalTopoJSON(
   input: unknown,
@@ -121,6 +182,7 @@ export class SphericalQuadstreamDataset {
       polygons(f.geometry).map((p) => sphericalPolygonSignature(p)),
     );
     this.topology = topology(this.source);
+    preserveSphericalValidity(this.topology, this.source, this.signatures);
     this.priorities = buildSphericalPriorities(
       this.topology.vertices,
       maxLevel,
