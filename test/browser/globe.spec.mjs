@@ -465,3 +465,136 @@ test("culling minimap renders in bottom-right box with pointer-events none and u
   const after = await mini.screenshot();
   expect(Buffer.compare(before, after)).not.toBe(0);
 });
+test("view clipping matches unclipped pixels on 110m and 50m atlases at zoomed, polar and antimeridian views", async ({
+  page,
+}) => {
+  test.setTimeout(180000);
+  await page.goto("/examples/globe/index.html?fixture=1");
+  await ready(page);
+  const result = await page.evaluate(async () => {
+    const [{ createGlobeRenderer }, { decodeCountries }] = await Promise.all([
+      import("/examples/globe/map.mjs"),
+      import("/examples/globe/geometry.mjs"),
+    ]);
+    const width = 960,
+      height = 540;
+    const make = (opts) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      return { ctx, draw: createGlobeRenderer(globalThis.d3, ctx, opts) };
+    };
+    const out = [];
+    for (const [atlas, views] of [
+      [
+        "110m",
+        [
+          ["Europe", [-12, -48, 0], 12],
+          ["Pacific", [180, -10, 0], 8],
+          ["NorthPole", [0, -89, 0], 9],
+          ["SouthPole", [0, 89, 0], 9],
+          ["Mid", [-100, -45, 0], 7],
+        ],
+      ],
+      [
+        "50m",
+        [
+          ["Alps", [-10, -46.5, 0], 30],
+          ["Fiji", [-178, 17, 0], 20],
+          ["Canada", [100, -60, 0], 6],
+          ["Africa", [-20, -2, 0], 8],
+        ],
+      ],
+    ]) {
+      const topo = await (
+        await fetch(`/node_modules/world-atlas/countries-${atlas}.json`)
+      ).json();
+      const fc = decodeCountries(topo, globalThis.topojson);
+      const cull = make({ cull: true }),
+        clip = make({ cull: true, clip: true });
+      for (const [name, rotation, zoom] of views) {
+        const state = {
+          width,
+          height,
+          rotation,
+          scale: 100 * zoom,
+          translation: [width / 2, height / 2],
+          interacting: false,
+          dpr: 1,
+        };
+        cull.draw(state, fc);
+        const { stats } = clip.draw(state, fc);
+        const a = cull.ctx.getImageData(0, 0, width, height).data,
+          b = clip.ctx.getImageData(0, 0, width, height).data;
+        let big = 0,
+          any = 0;
+        for (let i = 0; i < a.length; i += 4) {
+          const d = Math.max(
+            Math.abs(a[i] - b[i]),
+            Math.abs(a[i + 1] - b[i + 1]),
+            Math.abs(a[i + 2] - b[i + 2]),
+          );
+          if (d > 0) any++;
+          if (d > 32) big++;
+        }
+        out.push({
+          atlas,
+          name,
+          big,
+          any,
+          mode: stats.mode,
+          vertices: stats.vertices,
+          sourceVertices: stats.sourceVertices,
+        });
+      }
+    }
+    return out;
+  });
+  console.log(JSON.stringify(result));
+  for (const r of result) {
+    // Resampling of shortened great-circle edges may shift antialiasing, but
+    // no visible shape may differ.
+    expect(r.big, `${r.atlas} ${r.name}`).toBeLessThanOrEqual(8);
+    if (r.mode === "clip")
+      expect(r.vertices, `${r.atlas} ${r.name}`).toBeLessThan(r.sourceVertices);
+  }
+  expect(result.filter((r) => r.mode === "clip").length).toBe(result.length);
+});
+test("live globe clips geometry when zoomed, reports stats, and ?clip=0 disables it", async ({
+  page,
+}, testInfo) => {
+  const zoomIn = async () => {
+    await ready(page);
+    const box = await globe(page).boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    for (let i = 0; i < 14; i++) await page.mouse.wheel(0, -300);
+    await ready(page);
+    await expect(globe(page)).toHaveAttribute("data-draw-mode", /clip|cull/);
+  };
+  await page.goto("/examples/globe/index.html");
+  await zoomIn();
+  await expect(globe(page)).toHaveAttribute("data-draw-mode", "clip");
+  const clipped = await globe(page).evaluate((el) => ({
+    drawn: Number(el.dataset.drawnVertices),
+    source: Number(el.dataset.vertices),
+  }));
+  expect(clipped.drawn).toBeGreaterThan(0);
+  expect(clipped.drawn).toBeLessThan(clipped.source);
+  await page.locator("details summary").click();
+  await expect(page.locator("#diagnostics")).toContainText(
+    /Drawn: \d+ \/ \d+ vertices/,
+  );
+  await page.screenshot({
+    path: testInfo.outputPath("clip-on.png"),
+  });
+  await testInfo.attach("clip-on", {
+    path: testInfo.outputPath("clip-on.png"),
+    contentType: "image/png",
+  });
+
+  await page.goto("/examples/globe/index.html?clip=0");
+  await zoomIn();
+  await expect(globe(page)).toHaveAttribute("data-draw-mode", "cull-only");
+  await page.screenshot({ path: testInfo.outputPath("clip-off.png") });
+});

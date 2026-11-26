@@ -391,6 +391,7 @@ outstanding. See [contributing](https://github.com/curran/quadstream/blob/master
 Quadstream revives research and prototypes from 2010–2012 in a self-contained
 modern TypeScript implementation. See [historical provenance](https://github.com/curran/quadstream/blob/master/docs/HISTORY.md).
 
+Run `npm run build` and `npm run demo:globe`. This geometry-only D3 Canvas demo includes touch rotation and repeated pinch zoom, real atlas inputs, Quadstream/original comparison, and render-time view culling and spherical clipping (`?clip=0` to disable; the engine query itself is not viewport-aware). See [globe controls, provenance and limitations](docs/GLOBE.md).
 The modern implementation is MIT-licensed. Historical Java/browser code
 retains its existing license terms, including the original LGPL declaration.
 See [LICENSE](https://github.com/curran/quadstream/blob/master/LICENSE) and
