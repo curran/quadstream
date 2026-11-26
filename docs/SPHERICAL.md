@@ -12,7 +12,7 @@ import {
 } from "@quadstream/core";
 const countries = importSphericalTopoJSON(atlas, "countries");
 const globe = buildSphericalQuadstream(countries);
-const { geojson, usedFallback } = globe.query({ level: 4 });
+const { geojson, valid, promotedArcs } = globe.query({ level: 4.5 });
 ```
 
 The named TopoJSON decoder supports signed arcs, quantized transforms, feature
@@ -51,8 +51,9 @@ at full detail, never replaced by a global full-detail fallback. Vertices shared
 topology junctions. No geographic viewport culling is permitted yet; topology
 bounds are diagnostic only. The spherical dataset intentionally does not implement
 the planar partition/session interface. A versioned spherical artifact format,
-independent D3/robust spherical predicate comparison, real atlas benchmarks,
-globe integration, and visibility optimization remain separate work. Do not
+robust spherical predicate comparison, production-scale atlas benchmarks,
+and further visibility optimization remain separate work. The D3 globe demo
+and sampled D3 reference checks are implemented (see [GLOBE.md](GLOBE.md)). Do not
 serialize spherical results through the planar v1 partition API.
 
 The Node test suite includes exact seam and pole aliases, six faces, boundary

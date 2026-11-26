@@ -8,11 +8,12 @@ Quadstream is a research-oriented geometry engine. Please supply a minimal repro
 npm install
 npm run check
 node examples/hello.mjs
+npm run test:package
 ```
 
 All proposed changes must include deterministic tests for their invariants. Spatial indexing changes should compare against a brute-force reference query. BLG changes should assert the inorder and parent-priority invariants and exercise long skewed trees. Simplification changes should exercise polygon validity, shared boundaries, holes, and level nesting with documented fallback semantics. Binary format changes require round-trip, corrupt-length, corrupt-checksum, version-rejection and reordering tests.
 
-The TypeScript code intentionally has no runtime dependencies. Keep adapters, transport and UI separate from the geometry core. Do not modify historical source or licensing notices as part of unrelated refactoring.
+The TypeScript code intentionally has no runtime dependencies. Keep adapters, transport and UI separate from the geometry core. Modern contributions are MIT-licensed; do not modify historical source or licensing notices as part of unrelated refactoring. Preserve third-party terms.
 
 ## PR checklist
 

@@ -2,7 +2,7 @@
 
 Development preview: install dependencies and run `npm run build` before invoking
 `node bin/quadstream.mjs` from a checkout. The package declares a `quadstream`
-executable for eventual installation, but remains private pending release and license review.
+executable for eventual installation, but remains private pending release sign-off.
 
 ```sh
 node bin/quadstream.mjs --help
@@ -84,6 +84,4 @@ node examples/hello.mjs
 node bin/quadstream.mjs --help
 ```
 
-CI is configured to run the same checks on Node 20 and 22. The project remains
-private, and historical license review, clean-install sign-off and real-world
-geography benchmarks are required before production use or npm publication.
+CI runs the full Node checks and globe browser tests on Node 26, plus packed-package smoke tests on Node 20 and 26. The package remains private pending provenance, release sign-off and benchmark requirements.
