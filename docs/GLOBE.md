@@ -28,13 +28,35 @@ rotation. Canvas is device-pixel-ratio aware. Idle ocean glow is disabled
 while interacting. The renderer intentionally omits the cable overlay.
 
 The local pinned demo dependencies are D3 7.9.2, topojson-client 3.1.0, and
-world-atlas 2.0.2 (Natural Earth country data). Unlike the reference's
-visionscarto-world-atlas 110m URL, these assets are served from the installed
-package; 110m is the default and 50m is optional. Review dependency and dataset
+visionscarto-world-atlas 1.0.0 (Natural Earth-derived data) and us-atlas
+3.0.1 (US Census cartographic boundaries). These assets are served from the
+installed packages; 110m is the default and 50m is optional. The old
+world-atlas 2.0.2 remains a regression fixture. Review dependency and dataset
 licenses/provenance before distributing a public standalone bundle. The core
 has no new runtime dependencies. The original-geometry mode uses the same
 source as the Quadstream mode. Local GeoJSON must use D3 spherical winding;
 TopoJSON must contain the named countries object.
+
+## Regional boundary layers
+
+Internal US state boundaries activate when a conservative regional cap
+intersects the view cone and relative zoom reaches 3x (exit below 2.7x).
+County boundaries within each state activate at 6x (exit below 5.4x); use
+`?counties=0` to disable them. Configuration in `examples/globe/regional.mjs`
+defines the source, object, geographic caps, zoom gates, LOD offset and style.
+Caps include Alaska, Hawaii and territories; they can overselect near edges.
+Thresholds are provisional, not measured screen-space error bounds.
+
+Each layer lazily loads unprojected 10m TopoJSON and builds a spherical
+Quadstream hierarchy from its internal shared-arc mesh in its own worker.
+County lines exclude interstate arcs. Visionscarto remains the only source
+of coastlines and international borders. D3 clips line overlays during drawing;
+the polygon-only padded clipper is not used for lines. Cross-atlas junctions
+may not align exactly. Original mode draws original meshes; source fallback
+is reported when regional preprocessing or reconstruction fails. The worker
+and last frame stay cached per layer; inactive layers do not start new queries.
+Source changes and page teardown terminate workers. Custom files and test
+fixtures never activate regional overlays.
 
 ## Geometry and limits
 

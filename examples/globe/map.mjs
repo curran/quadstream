@@ -21,7 +21,7 @@ export function createGlobeRenderer(
     if (fill) ctx.fill();
     if (stroke) ctx.stroke();
   }
-  return (state, geojson) => {
+  return (state, geojson, overlays = []) => {
     const {
       width,
       height,
@@ -79,6 +79,12 @@ export function createGlobeRenderer(
       path(target);
       ctx.fill();
       ctx.stroke();
+    }
+    for (const { geometry, color, width } of overlays) {
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      drawShape(geometry, false, true);
     }
     ctx.restore();
     // `visible` is exactly what was handed to d3 for the land layer.

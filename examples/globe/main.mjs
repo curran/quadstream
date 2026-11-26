@@ -11,6 +11,7 @@ import { createGlobeRenderer } from "./map.mjs";
 import { createMinimapRenderer } from "./minimap.mjs";
 import { GlobeWorkerClient } from "./client.mjs";
 import { fixture } from "./fixture.mjs";
+import { createRegionalLayers, regionalConfig } from "./regional.mjs";
 const $ = (id) => document.getElementById(id),
   MINIMAP_LEVEL = 4,
   canvas = $("globe"),
@@ -44,6 +45,11 @@ let original,
   selectedFile = null,
   abort,
   disposed = false;
+const regional = createRegionalLayers({
+  configs: regionalConfig({ counties: new URLSearchParams(location.search).get("counties") !== "0" }),
+  createWorker: () => new Worker(new URL("./regional-worker.mjs", import.meta.url), { type: "module" }),
+  onChange: () => schedule(),
+});
 let drawStats = null;
 let requests = 0,
   frameMs = 0,
@@ -106,6 +112,7 @@ function diagnostics() {
           ")"
         : "—"),
     "Atlas payload: " + atlasBytes + " bytes | geometry queries: " + requests,
+    "Regional layers: " + regional.status().map((s) => s.id + ": " + s.phase + (s.warning || s.error ? " (" + (s.warning || s.error) + ")" : "")).join(" | "),
     ...(frame?.reasons ?? []),
   ].join("\n");
   // Inspectable state for accessibility diagnostics and deterministic browser tests.
@@ -123,6 +130,7 @@ function diagnostics() {
     clipRebuilt: String(drawStats?.rebuilt ?? ""),
     sourceVertices: String(frame?.sourceVertices ?? ""),
     mode: $("mode").value,
+    regionalLayers: JSON.stringify(regional.status()),
   });
 }
 function schedule() {
@@ -133,7 +141,15 @@ function schedule() {
     const activeGeojson =
       $("mode").value === "original" ? original : (frame?.geojson ?? original);
     const minimapGeojson = minimapFrame?.geojson ?? null;
-    const drawn = draw(state, activeGeojson);
+    const zoom = state.initialScale > 0 ? state.scale / state.initialScale : 1;
+    const target = Math.max(0, Math.min(19, Number($("level").value) + Math.log2(zoom)));
+    const level = quantizeAutoLevel(state.interacting ? Math.min(Number($("interactive-level").value), target) : target, state.interacting);
+    const overlays = regional.update(state, {
+      enabled: Boolean(original) && !selectedFile && sourceName !== "fixture",
+      original: $("mode").value === "original",
+      level,
+    });
+    const drawn = draw(state, activeGeojson, overlays);
     drawStats = drawn.stats;
     drawMinimap?.(
       { ...state, miniSize: 160 },
@@ -231,6 +247,7 @@ async function init() {
   original = undefined;
   requests = 0;
   atlasBytes = 0;
+  regional.reset();
   latest?.dispose();
   client?.dispose();
   abort?.abort();
@@ -248,7 +265,7 @@ async function init() {
       atlasBytes = 0;
     } else {
       const r = await fetch(
-        "../../node_modules/world-atlas/countries-" + sourceName + ".json",
+        "../../node_modules/visionscarto-world-atlas/world/" + sourceName + ".json",
         { signal: abort.signal },
       );
       if (!r.ok) throw new Error("Atlas HTTP " + r.status);
@@ -346,11 +363,13 @@ $("level").addEventListener("input", () => {
   $("level-value").value = $("level").value;
   $("level-value").textContent = $("level").value;
   requestLevel();
+  schedule();
 });
 $("interactive-level").addEventListener("input", () => {
   $("interactive-level-value").value = $("interactive-level").value;
   $("interactive-level-value").textContent = $("interactive-level").value;
   requestLevel();
+  schedule();
 });
 $("reset").addEventListener("click", reset);
 $("retry").addEventListener("click", () => void init());
@@ -375,6 +394,7 @@ window.addEventListener(
     disposed = true;
     epoch++;
     abort?.abort();
+    regional.reset();
     latest?.dispose();
     client?.dispose();
     detach();

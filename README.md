@@ -132,7 +132,7 @@ From a checkout, install dependencies and build, then run either command:
 | Demo | Command | What it demonstrates |
 | --- | --- | --- |
 | Progressive map | `npm run demo:map` | Canvas/MapLibre, detail levels, shared arcs, simulated partition latency |
-| Orthographic globe | `npm run demo:globe` | D3 Canvas, real 110m/50m atlas inputs, pinch zoom, rotation, worker-based LOD and original/reconstructed comparison |
+| Orthographic globe | `npm run demo:globe` | D3 Canvas, Visionscarto 110m/50m inputs, zoom-gated US state/county boundaries, pinch zoom, rotation, worker-based LOD and original/reconstructed comparison |
 
 Open the local URL printed by the server (normally http://127.0.0.1:4173/).
 The demos are not included in the npm artifact. The globe downloads the full
