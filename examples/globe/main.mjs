@@ -55,8 +55,8 @@ function diagnostics() {
       (frame?.unavailable ?? "—") +
       " | fallback groups: " +
       (frame?.fallbackGroups ?? "—") +
-      " | refined groups: " +
-      (frame?.refinedGroups ?? "—"),
+      " | invalid groups: " +
+      (frame?.invalidGroups ?? "—"),
     "Build: " +
       (frame?.buildMs?.toFixed(1) ?? "—") +
       " ms | query: " +
@@ -238,8 +238,8 @@ async function init() {
               " / " +
               f.sourceVertices +
               " vertices" +
-              (f.fallbackGroups || f.refinedGroups
-                ? " · conservative fallback/refinement"
+              (f.fallbackGroups || f.invalidGroups
+                ? " · source fallback/invalid coarse geometry"
                 : ""),
             "ready",
           );
@@ -272,8 +272,8 @@ $("mode").addEventListener("change", () => {
           " / " +
           frame.sourceVertices +
           " vertices" +
-          (frame.fallbackGroups || frame.refinedGroups
-            ? " · conservative fallback/refinement"
+          (frame.fallbackGroups || frame.invalidGroups
+            ? " · source fallback/invalid coarse geometry"
             : ""),
         "ready",
       );

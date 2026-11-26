@@ -112,7 +112,7 @@ dataset.query(options?: {
 ```
 
 `QuadstreamDataset` exposes `topology`, `quadtree`, and `arcTrees` for
-inspection. `QueryResult` contains `geojson`, the requested `level`,
+inspection. `QueryResult` contains `geojson`, the requested `level`, `valid`,
 `usedFallback`, `selectedFeatures`, and `selectedVertices`. `level` ranges
 from `0` through `maxLevel - 1`; the default is the finest level. `bounds`
 selects features by intersecting feature bounds and does not clip geometry.
@@ -231,8 +231,10 @@ culling. Exported helpers include `canonicalLonLat`, `lonLatVector`,
 `sphericalPolygonSignature`, and `validSphericalPolygon`. Supporting types are
 `UnitVector`, `CubeFace`, `SphericalCell`, `SphericalPriorities`,
 `SphericalChart`, `SphericalPolygonSignature`, and `SphericalQueryOptions`.
-See [spherical semantics](docs/SPHERICAL.md) for winding, poles, seams, charts,
-and fallback behavior.
+Spherical queries return the requested level directly; `valid` reports whether
+the reference checks accepted that reconstruction, and no full-detail safety
+fallback is applied. See [spherical semantics](docs/SPHERICAL.md) for winding,
+poles, seams, charts, and topology junctions.
 
 ## Geometry support and semantics
 
@@ -240,7 +242,7 @@ Supported: GeoJSON `Polygon`, `MultiPolygon`, `LineString`, and `MultiLineString
 
 Coordinates are **planar**, not automatically projected; caller-provided longitude/latitude is interpreted numerically. The current implementation does **not** wrap the antimeridian, transform coordinate reference systems, snap approximately matching vertices, infer shared borders from differently digitized edges, or support `Point`/`GeometryCollection`/3D coordinates. Invalid input rings are rejected. Polygon holes are validated for containment. Geometry validation uses an O(n²) reference implementation and is not yet scalable to very large rings.
 
-A detail level is an integer from `0` (coarsest) through `maxLevel - 1` (finest). More detailed levels form nested vertex subsets _in the BLG hierarchy_. A coarse simplification can be invalid even if the original is valid; the synchronous dataset query makes a **dataset-wide validity decision** and conservatively falls back to **full original geometry for every selected feature, regardless of viewport** so shared boundaries remain consistent. The level-wise result is therefore **not guaranteed to be monotonic when fallback occurs**. The progressive session reports incomplete or omitted features until required partitions arrive and uses the same global fallback when all partitions are available.
+A detail level is an integer from `0` (coarsest) through `maxLevel - 1` (finest). More detailed levels form nested vertex subsets _in the BLG hierarchy_. Planar queries retain their existing dataset-wide validity fallback so shared boundaries remain consistent. Spherical queries expose coarse invalidity through `valid: false` and return the requested reconstruction without promotion to full detail. Vertices shared by three or more shapes remain critical topology junctions.
 
 Viewport queries perform **feature-bounds filtering**, not line clipping. Geometry can extend beyond the requested viewport. The lazy loader supports an injected async fetcher, AbortSignal cancellation, bounded concurrency, a raw-byte LRU cache, and newest-view suppression. It does not provide an HTTP client or persistent cache. The partition planner conservatively requests every partition with potentially relevant priority, even when its bounding box is outside the viewport, because a long line may cross the view without any vertices inside it.
 

@@ -424,25 +424,19 @@ test("shared polygon boundaries remain identical at every level and BLG selectio
     assert.ok(validSphericalPolygon(b.geometry.coordinates));
   }
 });
-test("global fallback when coarse line introduces antipodal edge", () => {
+test("coarse spherical queries expose invalid geometry without fallback", () => {
   const d = buildSphericalQuadstream(
     fc(
       feature(line([0, 0], [90, 0], [180, 0]), "long"),
       feature(line([90, -10], [90, 10]), "critical"),
     ),
   );
-  assert.equal(d.query({ level: 0 }).usedFallback, true);
-  assert.deepEqual(
-    d.query({ level: 0 }).geojson.features[0].geometry.coordinates,
-    [
-      [0, 0],
-      [90, 0],
-      [-180, 0],
-    ],
-  );
+  const coarse = d.query({ level: 0 });
+  assert.equal(coarse.usedFallback, false);
+  assert.equal(coarse.valid, false);
   assert.equal(d.query().usedFallback, false);
 });
-test("multipolygon and multiline retain structure and validate every level", () => {
+test("multipolygon and multiline retain structure at every level", () => {
   const d = buildSphericalQuadstream(
     fc(
       feature(
@@ -468,11 +462,14 @@ test("multipolygon and multiline retain structure and validate every level", () 
     ),
   );
   for (let l = 0; l < d.priorities.maxLevel; l++) {
-    const [p, m] = d.query({ level: l }).geojson.features;
+    const result = d.query({ level: l }),
+      [p, m] = result.geojson.features;
     assert.equal(p.geometry.coordinates.length, 2);
     assert.equal(p.geometry.coordinates[0].length, 2);
-    assert.ok(p.geometry.coordinates.every((r) => validSphericalPolygon(r)));
-    assert.ok(m.geometry.coordinates.every(validGreatCirclePath));
+    if (result.valid) {
+      assert.ok(p.geometry.coordinates.every((r) => validSphericalPolygon(r)));
+      assert.ok(m.geometry.coordinates.every(validGreatCirclePath));
+    }
   }
 });
 test("unsupported bounds and disabled validation fail closed", () => {

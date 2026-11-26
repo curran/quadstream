@@ -71,6 +71,8 @@ export interface QueryOptions {
 export interface QueryResult {
   geojson: FeatureCollection;
   level: number;
+  /** Whether the requested reconstruction passed the dataset's validity checks. */
+  valid: boolean;
   usedFallback: boolean;
   selectedFeatures: number;
   selectedVertices: number;

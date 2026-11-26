@@ -46,8 +46,11 @@ removed for the engine only. Original source geometry remains untouched.
 If a global build fails, the demo attempts exact-coordinate-connected groups;
 a rejected group remains entirely original, preserving shared vertices with
 neighbors in that group. This is not independent per-country simplification.
-If a requested LOD fails validation, search finer levels and explicitly report
-effective levels/fallbacks. No arbitrary feature dropping or ring rewinding.
+The requested LOD is rendered directly, even when the spherical validity
+diagnostic rejects a coarse reconstruction; the demo reports invalid coarse
+groups instead of silently promoting them to finer levels. No arbitrary
+feature dropping or ring rewinding. Vertices shared by three or more shapes
+remain critical topology junctions at every LOD.
 Cross-feature intersection checking and differently digitized boundaries are
 still limitations; D3 samples do not prove global spherical validity.
 
@@ -58,8 +61,9 @@ guarantee. A bounded cache, latest-request suppression and worker replacement
 on source changes keep stale geometry out of the view. Last valid global
 geometry remains visible while a level is computed.
 
-Diagnostics distinguish requested/effective levels, vertex counts, fallback,
-build/query latency, atlas payload bytes, and last draw duration. Draw-only FPS
+Diagnostics distinguish requested/rendered levels, vertex counts, source
+fallback, invalid coarse groups, build/query latency, atlas payload bytes, and
+last draw duration. Draw-only FPS
 is an estimate, not measured sustained animation FPS. The full atlas is
 downloaded up front. No spherical binary artifacts, network partition streaming,
 or hemisphere culling are implemented here; no claim of bandwidth savings.

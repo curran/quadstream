@@ -151,7 +151,12 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
   let groups = [build(all)];
   if (groups[0].error && features.length > 1) {
     try {
-      groups = components(features).map(build);
+      const singletonGroups = all.map((i) => build([i])),
+        invalid = singletonGroups.filter((g) => g.error),
+        valid = all.filter((i) => !singletonGroups[i].error);
+      groups = [...(valid.length ? [build(valid)] : []), ...invalid];
+      if (groups.some((g) => g.error && g.indices.length > 1))
+        groups = components(features).map(build);
     } catch (error) {
       void error;
     }
@@ -172,37 +177,25 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
     const start = clock(),
       out = [...features];
     let fallbackGroups = 0,
-      refinedGroups = 0;
+      invalidGroups = 0;
     const effectiveLevels = [];
     for (const g of groups) {
       if (!g.engine) {
         fallbackGroups++;
         continue;
       }
-      // Global/component fallback can mask valid finer levels. Search toward
-      // full detail, never render invalid coarse geometry.
-      let selected;
-      for (let l = level; l < maxLevel; l++) {
-        const r = g.engine.query({ level: l });
-        if (
-          !r.usedFallback &&
-          r.geojson.features.every((f, j) =>
-            d3Compatible(features[g.indices[j]], f, d3, l === maxLevel - 1),
-          )
-        ) {
-          selected = { level: l, features: r.geojson.features };
-          break;
-        }
-      }
-      if (!selected) {
-        fallbackGroups++;
-        continue;
-      }
-      effectiveLevels.push(selected.level);
-      if (selected.level > level) refinedGroups++;
+      const selected = g.engine.query({ level }),
+        compatible = selected.geojson.features.every((f, j) =>
+          d3Compatible(features[g.indices[j]], f, d3, level === maxLevel - 1),
+        );
+      if (!selected.valid || !compatible) invalidGroups++;
+      effectiveLevels.push(level);
       for (let j = 0; j < g.indices.length; j++) {
         const i = g.indices[j];
-        out[i] = { ...features[i], geometry: selected.features[j].geometry };
+        out[i] = {
+          ...features[i],
+          geometry: selected.geojson.features[j].geometry,
+        };
       }
     }
     const geojson = { type: "FeatureCollection", features: out };
@@ -214,7 +207,7 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
       buildMs,
       queryMs: clock() - start,
       fallbackGroups,
-      refinedGroups,
+      invalidGroups,
       unavailable,
       reasons,
       effectiveLevels,

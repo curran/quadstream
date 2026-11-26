@@ -154,7 +154,7 @@ export class SphericalQuadstreamDataset {
           lookup,
         ),
       );
-    let results = reconstruct(level);
+    const results = reconstruct(level);
     // The reconstruction helper's planar validity flag is deliberately ignored;
     // evaluate every feature against its original spherical chart and orientation.
     const valid = results.every((r, i) => {
@@ -167,7 +167,6 @@ export class SphericalQuadstreamDataset {
         lines(r.feature.geometry).every(validGreatCirclePath)
       );
     });
-    if (!valid) results = reconstruct(Infinity);
     return {
       geojson: {
         type: "FeatureCollection",
@@ -182,7 +181,8 @@ export class SphericalQuadstreamDataset {
         }),
       },
       level,
-      usedFallback: !valid,
+      valid,
+      usedFallback: false,
       selectedFeatures: results.length,
       selectedVertices: results.reduce((n, r) => n + r.selectedVertices, 0),
     };

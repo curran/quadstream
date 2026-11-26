@@ -54,6 +54,7 @@ export function buildTopologyWithPolicy(
     throw new Error("Empty FeatureCollection is not supported");
   const vertices: Vertex[] = [],
     byLocation = new Map<string, number>(),
+    featureIdsByVertex = new Map<number, Set<string>>(),
     features: PendingFeature[] = [];
   const featureIds = new Set<string>();
   let overall: Bounds | undefined;
@@ -76,9 +77,10 @@ export function buildTopologyWithPolicy(
       typeof feature.geometry !== "object"
     )
       throw new Error(`Feature ${f} must have a supported geometry`);
-    const id = String(feature.id ?? f);
-    if (featureIds.has(id)) throw new Error(`Duplicate feature id: ${id}`);
-    featureIds.add(id);
+    const featureId = String(feature.id ?? f);
+    if (featureIds.has(featureId))
+      throw new Error(`Duplicate feature id: ${featureId}`);
+    featureIds.add(featureId);
     const { type, coordinates } = feature.geometry;
     if (
       !["Polygon", "MultiPolygon", "LineString", "MultiLineString"].includes(
@@ -103,7 +105,7 @@ export function buildTopologyWithPolicy(
           !policy.ring([...pts, pts[0]!])
         )
           throw new Error(
-            `Invalid or self-intersecting source polygon ring in feature ${id}`,
+            `Invalid or self-intersecting source polygon ring in feature ${featureId}`,
           );
       } else if (
         pts.length < 2 ||
@@ -111,9 +113,13 @@ export function buildTopologyWithPolicy(
         (policy.line && !policy.line(pts))
       )
         throw new Error(
-          `Line requires >=2 distinct coordinates in feature ${id}`,
+          `Line requires >=2 distinct coordinates in feature ${featureId}`,
         );
       const ids = pts.map(vertexId);
+      for (const id of ids) {
+        if (!featureIdsByVertex.has(id)) featureIdsByVertex.set(id, new Set());
+        featureIdsByVertex.get(id)!.add(featureId);
+      }
       paths.push({ ids, closed });
     }
     if (type === "Polygon") {
@@ -134,7 +140,9 @@ export function buildTopologyWithPolicy(
           }),
         )
       )
-        throw new Error(`Invalid polygon (possibly hole containment): ${id}`);
+        throw new Error(
+          `Invalid polygon (possibly hole containment): ${featureId}`,
+        );
       groups.push(group);
     } else if (type === "MultiPolygon") {
       for (const polygon of coordinates as Position[][][]) {
@@ -155,9 +163,9 @@ export function buildTopologyWithPolicy(
             }),
           )
         )
-          throw new Error(`Invalid multipolygon component: ${id}`);
+          throw new Error(`Invalid multipolygon component: ${featureId}`);
       }
-      if (!groups.length) throw new Error(`Empty multipolygon: ${id}`);
+      if (!groups.length) throw new Error(`Empty multipolygon: ${featureId}`);
     } else if (type === "LineString") {
       append(coordinates as Position[], false);
       groups.push([0]);
@@ -167,7 +175,7 @@ export function buildTopologyWithPolicy(
         append(line, false);
         groups.push([i]);
       }
-      if (!groups.length) throw new Error(`Empty multiline: ${id}`);
+      if (!groups.length) throw new Error(`Empty multiline: ${featureId}`);
     }
     const all = paths.flatMap((path) =>
       path.ids.map((i) => [vertices[i]!.x, vertices[i]!.y] as Position),
@@ -175,7 +183,7 @@ export function buildTopologyWithPolicy(
     const b = boundsOf(all);
     overall = overall ? unionBounds(overall, b) : b;
     features.push({
-      id,
+      id: featureId,
       properties: { ...(feature.properties ?? {}) },
       geometryType: type,
       paths,
@@ -223,9 +231,15 @@ export function buildTopologyWithPolicy(
       incident.get(id)!.add(signature);
     }
   }
-  for (const v of vertices)
-    if (neighbors.get(v.id)?.size !== 2 || incident.get(v.id)?.size !== 1)
+  for (const v of vertices) {
+    const shapeCount = featureIdsByVertex.get(v.id)?.size ?? 0;
+    if (
+      shapeCount >= 3 ||
+      neighbors.get(v.id)?.size !== 2 ||
+      incident.get(v.id)?.size !== 1
+    )
       v.critical = true;
+  }
   const arcs: Arc[] = [],
     arcByKey = new Map<string, number>();
   function intern(ids: number[]): number {

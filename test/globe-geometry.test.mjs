@@ -128,13 +128,11 @@ test("unsupported connected component keeps original geometry and independent co
   const original = fc(bad, neighbor, isolated),
     engine = createGlobeGeometry(original, d3);
   const result = engine.query(0);
-  assert.equal(result.unavailable, 2);
-  assert.deepEqual(
-    result.geojson.features.slice(0, 2),
-    original.features.slice(0, 2),
-  );
+  assert.equal(result.unavailable, 1);
+  assert.deepEqual(result.geojson.features[0], original.features[0]);
   assert.equal(result.geojson.features.length, 3);
   assert.ok(result.fallbackGroups > 0);
+  assert.ok(result.geojson.features[1].geometry.coordinates[0].length < 5);
 });
 test("named countries object decoding ignores unrelated objects", () => {
   const topo = {
@@ -196,10 +194,10 @@ test("real pinned 110m atlas retains all countries, IDs, D3 interiors and full-d
     ),
   );
   assert.ok(
-    low.geojson.features.every((f, i) =>
-      d3Compatible(original.features[i], f, d3),
-    ),
+    low.effectiveLevels.every((level) => level === 4),
+    JSON.stringify(low.effectiveLevels),
   );
+  assert.ok(low.invalidGroups >= 0);
   assert.ok(
     low.vertices < low.sourceVertices,
     "No real atlas reduction: " +

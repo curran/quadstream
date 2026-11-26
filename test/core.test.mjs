@@ -85,6 +85,21 @@ test("topology shares exact reverse-facing arcs across adjacent polygons", () =>
   );
 });
 
+test("topology preserves vertices shared by three shapes", () => {
+  const junction = [0, 0];
+  const t = buildTopology(
+    collection(
+      rect("north-east", 0, 0, 1, 1),
+      rect("north-west", -1, 0, 0, 1),
+      rect("south-west", -1, -1, 0, 0),
+    ),
+  );
+  const vertex = t.vertices.find(
+    (v) => v.x === junction[0] && v.y === junction[1],
+  );
+  assert.ok(vertex?.critical, "three-shape junction must remain critical");
+});
+
 test("full detail exactly recovers original cyclic paths", () => {
   const dataset = buildQuadstream(c, { maxLevel: 12 });
   const result = dataset.query({ level: 11 });

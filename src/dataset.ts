@@ -87,6 +87,7 @@ export class QuadstreamDataset {
     return {
       geojson: { type: "FeatureCollection", features: results },
       level,
+      valid: !globallyInvalid,
       usedFallback: globallyInvalid,
       selectedFeatures: results.length,
       selectedVertices: total,
