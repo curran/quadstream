@@ -6,10 +6,13 @@ convention. This is a separate in-memory API: existing `buildQuadstream`,
 planar adapters, and v1 binary partitions retain their original semantics.
 
 ```js
-import { buildSphericalQuadstream, importSphericalTopoJSON } from '@quadstream/core';
-const countries = importSphericalTopoJSON(atlas, 'countries');
+import {
+  buildSphericalQuadstream,
+  importSphericalTopoJSON,
+} from "@quadstream/core";
+const countries = importSphericalTopoJSON(atlas, "countries");
 const globe = buildSphericalQuadstream(countries);
-const {geojson, usedFallback} = globe.query({level: 4});
+const { geojson, usedFallback } = globe.query({ level: 4 });
 ```
 
 The named TopoJSON decoder supports signed arcs, quantized transforms, feature
