@@ -448,3 +448,20 @@ test("opt-in bounding-cap culling matches unculled pixels across Atlantic, Pacif
   });
   expect(mismatches).toEqual([]);
 });
+test("culling minimap renders in bottom-right box with pointer-events none and updates on zoom", async ({
+  page,
+}) => {
+  await page.goto("/examples/globe/index.html");
+  await ready(page);
+  const mini = page.locator("#minimap");
+  await expect(mini).toBeVisible();
+  await expect(mini).toHaveCSS("pointer-events", "none");
+  const before = await mini.screenshot();
+  expect(before.byteLength).toBeGreaterThan(200);
+  const box = await globe(page).boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -200);
+  await ready(page);
+  const after = await mini.screenshot();
+  expect(Buffer.compare(before, after)).not.toBe(0);
+});

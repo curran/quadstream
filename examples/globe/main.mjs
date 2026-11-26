@@ -9,13 +9,19 @@ import {
   createLatestGeometry,
 } from "./lod.mjs";
 import { createGlobeRenderer } from "./map.mjs";
+import { createMinimapRenderer } from "./minimap.mjs";
 import { GlobeWorkerClient } from "./client.mjs";
 import { fixture } from "./fixture.mjs";
 const $ = (id) => document.getElementById(id),
   canvas = $("globe"),
+  miniCanvas = $("minimap"),
   status = $("status"),
-  ctx = canvas.getContext("2d");
+  ctx = canvas.getContext("2d"),
+  miniCtx = miniCanvas?.getContext("2d");
 const draw = createGlobeRenderer(globalThis.d3, ctx, { cull: true });
+const drawMinimap = miniCtx
+  ? createMinimapRenderer(globalThis.d3, miniCtx)
+  : null;
 const state = {
   rotation: [0, -20, 0],
   interacting: false,
@@ -93,10 +99,10 @@ function schedule() {
   raf = requestAnimationFrame(() => {
     raf = 0;
     const start = performance.now();
-    draw(
-      state,
-      $("mode").value === "original" ? original : (frame?.geojson ?? original),
-    );
+    const activeGeojson =
+      $("mode").value === "original" ? original : (frame?.geojson ?? original);
+    draw(state, activeGeojson);
+    drawMinimap?.({ ...state, miniSize: 160 }, activeGeojson);
     frameMs = performance.now() - start;
     diagnostics();
   });
@@ -140,6 +146,10 @@ function resize() {
   Object.assign(state, resizedView(state, width, height), { dpr });
   canvas.width = Math.max(1, Math.round(width * dpr));
   canvas.height = Math.max(1, Math.round(height * dpr));
+  if (miniCanvas) {
+    miniCanvas.width = Math.max(1, Math.round(160 * dpr));
+    miniCanvas.height = Math.max(1, Math.round(160 * dpr));
+  }
   gesture.rebase();
   schedule();
   requestLevel();

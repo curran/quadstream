@@ -111,6 +111,17 @@
       #file {
         max-width: 180px;
       }
+      #minimap {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+        width: 160px;
+        height: 160px;
+        border: 1px solid #5c5c96;
+        border-radius: 8px;
+        background: #12122ce8;
+        pointer-events: none;
+      }
     </style>
   </head>
   <body>
@@ -118,6 +129,12 @@
       id="globe"
       tabindex="0"
       aria-label="Interactive globe. Drag or use arrows to rotate, pinch or use plus and minus to zoom."
+    ></canvas>
+    <canvas
+      id="minimap"
+      width="160"
+      height="160"
+      aria-label="Globe culling minimap"
     ></canvas>
     <section id="panel" aria-label="Globe controls">
       <label
