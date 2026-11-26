@@ -8,9 +8,8 @@ for a map or globe, or serialize planar geometry into independently loadable
 binary partitions. The TypeScript-first core is ESM with no runtime dependencies,
 and requires no VizHub account, map framework or server.
 
-> **Experimental 0.1.0 release preparation.** The package is not yet published
-> and remains private pending release sign-off. Reference validation can be
-> expensive; do not use it for safety-critical geometry.
+> **Experimental 0.1.0.** Reference validation can be expensive; do not use it
+> for safety-critical geometry.
 
 ## Features
 
@@ -23,13 +22,13 @@ and requires no VizHub account, map framework or server.
 
 ## Install
 
-Once the public package is released (Node.js 20+, ESM):
+Install from npm when version 0.1.0 is available (Node.js 20+, ESM):
 
 ```sh
 npm install @vizhub/quadstream
 ```
 
-Until then, use a checkout and build the package:
+Alternatively, build from a checkout:
 
 ```sh
 git clone https://github.com/vizhub-studio/quadstream.git
@@ -143,7 +142,7 @@ and [globe demo](https://github.com/vizhub-studio/quadstream/blob/master/docs/GL
 
 ## CLI
 
-After installing the released package, run its executable with
+After installing the package, run its executable with
 `npx --no-install quadstream` (or use `node bin/quadstream.mjs` from a built checkout):
 
 ```sh
