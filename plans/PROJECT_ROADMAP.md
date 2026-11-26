@@ -20,6 +20,10 @@ The accompanying large PR introduces the following components as a **development
 
 Run a fresh checkout `npm ci`, `npm run check` and the demo on supported Node versions. Verify the committed lockfile and dependency pinning. The modern MIT license decision is recorded; confirm ownership/provenance and preserve all historical third-party notices before a public npm release. Confirm algorithm behavior with the UDCVis Vietnam, Africa and Florida regression examples and capture realistic country-boundary benchmarks before claiming production-ready topology preservation. Record reproducible commands and actual measurements.
 
+## Interactive algorithmic performance work
+
+The [interactive algorithmic performance roadmap](INTERACTIVE_ALGORITHMIC_PERFORMANCE.md) decomposes the performance portions of PR10, PR11 and PR12 into independently mergeable waves. It prioritizes output-sensitive reconstruction and indexed validation, followed by shared-arc caching, incremental spherical repair and validity-aware spatial retrieval. The [fused spherical BLG clipping design](FUSED_SPHERICAL_BLG_CLIPPING.md) proposes an isolated early prototype and correctness-gated integration; neither document claims the optimizations are implemented.
+
 ## Follow-on standalone PRs
 
 ### PR8 — CLI and standards-based geographic adapters
