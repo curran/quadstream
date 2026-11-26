@@ -37,6 +37,7 @@ export function reconstructFeature(
   level: number | ((arcId: number) => number),
   lookup: CoordinateLookup,
   includeMissing = false,
+  planarValidity = true,
 ): ReconstructionResult {
   let missing = false,
     selectedVertices = 0;
@@ -109,14 +110,15 @@ export function reconstructFeature(
   const groups = f.groups.map((group) => group.map((i) => paths[i]!));
   let geometry: Feature["geometry"];
   let valid = true;
+  const checkPolygon = planarValidity ? validPolygon : () => true;
   switch (f.geometryType) {
     case "Polygon":
       geometry = { type: "Polygon", coordinates: groups[0]! };
-      valid = validPolygon(groups[0]!);
+      valid = checkPolygon(groups[0]!);
       break;
     case "MultiPolygon":
       geometry = { type: "MultiPolygon", coordinates: groups };
-      valid = groups.every(validPolygon);
+      valid = groups.every(checkPolygon);
       break;
     case "LineString":
       geometry = { type: "LineString", coordinates: groups[0]![0]! };
@@ -131,7 +133,11 @@ export function reconstructFeature(
       break;
   }
   // A closed ring whose last segment collapses must not be accepted by accident.
-  if (f.geometryType === "Polygon" && !groups[0]!.every(simpleClosedRing))
+  if (
+    planarValidity &&
+    f.geometryType === "Polygon" &&
+    !groups[0]!.every(simpleClosedRing)
+  )
     valid = false;
   return {
     feature: {

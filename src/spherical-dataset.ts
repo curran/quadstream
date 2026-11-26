@@ -222,7 +222,15 @@ export class SphericalQuadstreamDataset {
       );
     };
     const run = (f: Topology["features"][number]) =>
-      reconstructFeature(f, this.topology.arcs, this.arcTrees, levelOf, lookup);
+      reconstructFeature(
+        f,
+        this.topology.arcs,
+        this.arcTrees,
+        levelOf,
+        lookup,
+        false,
+        false,
+      );
     const results = this.topology.features.map(run);
     const ok = results.map((r, i) => check(i, r));
     // Repair: promote every arc of an invalid feature to the next integer

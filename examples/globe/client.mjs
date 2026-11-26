@@ -8,7 +8,9 @@ export class GlobeWorkerClient {
       const p = this.pending.get(data.id);
       if (!p) return;
       this.pending.delete(data.id);
-      if (data.error) p.reject(new Error(data.error));
+      if (data.superseded)
+        p.reject(new DOMException("Superseded", "AbortError"));
+      else if (data.error) p.reject(new Error(data.error));
       else p.resolve(data);
     };
     this.error = (e) => {
