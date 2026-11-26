@@ -27,7 +27,7 @@ Keyboard arrows rotate; plus/minus zoom. Resize retains relative zoom and
 rotation. Canvas is device-pixel-ratio aware. Idle ocean glow is disabled
 while interacting. The renderer intentionally omits the cable overlay.
 
-The local pinned demo dependencies are D3 7.8.2, topojson-client 3.1.0, and
+The local pinned demo dependencies are D3 7.9.2, topojson-client 3.1.0, and
 world-atlas 2.0.2 (Natural Earth country data). Unlike the reference's
 visionscarto-world-atlas 110m URL, these assets are served from the installed
 package; 110m is the default and 50m is optional. Review dependency and dataset
@@ -46,9 +46,8 @@ removed for the engine only. Original source geometry remains untouched.
 If a global build fails, the demo attempts exact-coordinate-connected groups;
 a rejected group remains entirely original, preserving shared vertices with
 neighbors in that group. This is not independent per-country simplification.
-The requested LOD is rendered directly, even when the spherical validity
-diagnostic rejects a coarse reconstruction; the demo reports invalid coarse
-groups instead of silently promoting them to finer levels. No arbitrary
+Fractional LOD candidates are repaired by promoting shared arcs of invalid
+features, as described below. The demo reports remaining invalid groups. No arbitrary
 feature dropping or ring rewinding. Vertices shared by three or more shapes
 remain critical topology junctions at every LOD.
 Cross-feature intersection checking and differently digitized boundaries are
@@ -84,10 +83,11 @@ LOD and stale responses; spherical fixtures and a real local 110m atlas
 exercise D3 winding, area, containment, projected clipping, shared boundaries,
 full reconstruction, and meaningful reduction. Browser scenarios cover mouse,
 wheel, keyboard, repeated pinch, drag-to-pinch-to-drag, third pointers,
-cancellation, resizing, original-vs-full pixel comparison, real-atlas loading,
+cancellation, resizing, original-vs-full pixel comparison (fixture and 110m real
+atlas at four orientations and two zoom levels), real-atlas loading,
 and local-file recovery. Chromium has CDP touch injection in addition to
 synthetic PointerEvents; WebKit exercises the pointer events. These are not
-physical iOS/Android hardware tests. CI uses Node 26 only. Before declaring
+physical iOS/Android hardware tests. Globe browser CI uses Node 26. Before declaring
 mobile parity, manually verify on iPhone Safari and Android Chrome, including
 consecutive pinches, interruptions, orientation changes and rotation at zoom.
 

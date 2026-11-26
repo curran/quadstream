@@ -5,12 +5,12 @@ on:
     branches: [master, main]
 jobs:
   test:
-    # Playwright 1.55.1 supports Ubuntu 24.04; avoid runner-image drift.
+    # Playwright 1.65.1 supports Ubuntu 24.04; avoid runner-image drift.
     runs-on: ubuntu-24.04
     # Match @playwright/test exactly; the image includes browsers and OS libraries.
     # Avoid the browser installer hanging after downloading the Chromium archive.
     container:
-      image: mcr.microsoft.com/playwright:v1.55.1-noble
+      image: mcr.microsoft.com/playwright:v1.65.1-noble
     env:
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
     steps:
@@ -18,11 +18,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "26"
-      - run: npm install --ignore-scripts
+      - run: npm ci --ignore-scripts
       - run: npm run check
       - run: node examples/hello.mjs
       - run: node bin/quadstream.mjs --help
+      - run: npm run test:package
       - name: Verify bundled browser executables
         run: |
           node --input-type=module -e 'import { chromium, webkit } from "@playwright/test"; import { accessSync, constants } from "node:fs"; for (const browser of [chromium, webkit]) { const path = browser.executablePath(); accessSync(path, constants.X_OK); console.log(path); }'
       - run: npm run test:globe:browser
+  package-node20:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci --ignore-scripts
+      - run: npm run test:package

@@ -26,4 +26,4 @@ The 2012 system combines spatially distributed vertex priorities with per-polygo
 - Replace incremental BLG mutation with an ordered min-Cartesian tree for the initial batch case.
 - Treat output validity as an explicit gate; globally fall back to original geometry instead of returning malformed output.
 - Keep the original Java/Dojo/Processing.js source in its existing locations for research and licensing audits.
-- Keep the proposed npm package private until third-party provenance and license scope are established.
+- License the modern implementation under MIT, preserving the historical LGPL declaration and third-party terms. Keep the npm package private until provenance and release sign-off are complete.
