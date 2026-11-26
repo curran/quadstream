@@ -1,5 +1,5 @@
 {
-  "name": "@quadstream/core",
+  "name": "@vizhub/quadstream",
   "version": "0.1.0",
   "private": true,
   "description": "Deterministic, topology-aware progressive geographic geometry engine",
@@ -18,7 +18,6 @@
     "dist",
     "README.md",
     "LICENSE",
-    "LICENSE-NOTICE.md",
     "CHANGELOG.md",
     "bin"
   ],
@@ -55,11 +54,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/curran/quadstream.git"
+    "url": "git+https://github.com/vizhub-studio/quadstream.git"
   },
-  "homepage": "https://github.com/curran/quadstream#readme",
+  "homepage": "https://github.com/vizhub-studio/quadstream#readme",
   "bugs": {
-    "url": "https://github.com/curran/quadstream/issues"
+    "url": "https://github.com/vizhub-studio/quadstream/issues"
   },
   "keywords": [
     "geometry",

@@ -9,7 +9,7 @@ planar adapters, and v1 binary partitions retain their original semantics.
 import {
   buildSphericalQuadstream,
   importSphericalTopoJSON,
-} from "@quadstream/core";
+} from "@vizhub/quadstream";
 const countries = importSphericalTopoJSON(atlas, "countries");
 const globe = buildSphericalQuadstream(countries);
 const { geojson, valid, promotedArcs } = globe.query({ level: 4.5 });

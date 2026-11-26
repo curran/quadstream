@@ -2,12 +2,12 @@
 
 ## Standalone repository (2010–2011)
 
-- Repository: https://github.com/curran/quadstream
+- Repository: https://github.com/vizhub-studio/quadstream
 - Historical Java pipeline: `src/main/java/org/curransoft/quadstream/Quadstream.java`
 - Browser BLG tree: `src/main/webapp/js/blgTree.js`
 - Browser R-tree prototype: `src/main/webapp/js/rtree.js`
 - Java shapefile input, adjacency/critical-vertex detection, SQL output and browser demos remain at their original paths. This PR adds modern sources, without replacing legacy files or modifying their original licenses.
-- The historical `Quadstream00/README` declares the GNU Lesser General Public License but does not state a version.
+- Historical files retain their original license and attribution notices.
 
 ## UDCVis continuation (2012)
 
@@ -26,4 +26,4 @@ The 2012 system combines spatially distributed vertex priorities with per-polygo
 - Replace incremental BLG mutation with an ordered min-Cartesian tree for the initial batch case.
 - Treat output validity as an explicit gate; globally fall back to original geometry instead of returning malformed output.
 - Keep the original Java/Dojo/Processing.js source in its existing locations for research and licensing audits.
-- License the modern implementation under MIT, preserving the historical LGPL declaration and third-party terms. Keep the npm package private until provenance and release sign-off are complete.
+- License the modern implementation under MIT, preserving historical and third-party terms. Keep the npm package private until provenance and release sign-off are complete.

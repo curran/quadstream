@@ -14,20 +14,21 @@ const run = (cmd, args, cwd = root) => execFileSync(cmd, args, {
 try {
   // Build through prepack rather than relying on a previous test's dist.
   rmSync(join(root, 'dist'), { recursive: true, force: true });
-  const [pack] = JSON.parse(run(npm, ['pack', '--json', '--pack-destination', temp]));
+  const packResult = JSON.parse(run(npm, ['pack', '--json', '--pack-destination', temp]));
+  const pack = Array.isArray(packResult) ? packResult[0] : Object.values(packResult)[0];
   const paths = pack.files.map(file => file.path);
-  for (const required of ['package.json', 'README.md', 'LICENSE', 'LICENSE-NOTICE.md',
+  for (const required of ['package.json', 'README.md', 'LICENSE',
     'CHANGELOG.md', 'dist/index.js', 'dist/index.d.ts', 'bin/quadstream.mjs']) {
     assert(paths.includes(required), 'missing packed file: ' + required);
   }
   for (const path of paths) {
-    assert(/^(package\.json|README\.md|LICENSE|LICENSE-NOTICE\.md|CHANGELOG\.md|bin\/quadstream\.mjs|dist\/[\w.-]+\.(js|d\.ts))$/.test(path),
+    assert(/^(package\.json|README\.md|LICENSE|CHANGELOG\.md|bin\/quadstream\.mjs|dist\/[\w.-]+\.(js|d\.ts))$/.test(path),
       'unexpected packed file: ' + path);
   }
   writeFileSync(join(temp, 'package.json'), JSON.stringify({ private: true, type: 'module' }));
   run(npm, ['install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund',
     '--package-lock=false', join(temp, pack.filename)], temp);
-  const installed = JSON.parse(readFileSync(join(temp, 'node_modules/@quadstream/core/package.json'), 'utf8'));
+  const installed = JSON.parse(readFileSync(join(temp, 'node_modules/@vizhub/quadstream/package.json'), 'utf8'));
   assert.equal(installed.license, 'MIT');
   assert.equal(installed.version, '0.1.0');
   assert.equal(Object.keys(installed.dependencies ?? {}).length, 0);
@@ -36,8 +37,8 @@ try {
 import assert from 'node:assert/strict';
 `.replace("import assert from 'node:assert/strict';", '') + `
 import { buildQuadstream, buildSphericalQuadstream, exportPartitions,
-  QuadstreamSession, QuadstreamLoader, fetchFromBundle } from '@quadstream/core';
-import type { FeatureCollection, QueryResult } from '@quadstream/core';
+  QuadstreamSession, QuadstreamLoader, fetchFromBundle } from '@vizhub/quadstream';
+import type { FeatureCollection, QueryResult } from '@vizhub/quadstream';
 const source: FeatureCollection = {type:'FeatureCollection', features:[
   {type:'Feature', id:'line', properties:{}, geometry:{type:'LineString',
     coordinates:[[0,0],[1,1],[2,2]]}}

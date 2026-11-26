@@ -26,13 +26,13 @@ and requires no VizHub account, map framework or server.
 Once the public package is released (Node.js 20+, ESM):
 
 ```sh
-npm install @quadstream/core
+npm install @vizhub/quadstream
 ```
 
 Until then, use a checkout and build the package:
 
 ```sh
-git clone https://github.com/curran/quadstream.git
+git clone https://github.com/vizhub-studio/quadstream.git
 cd quadstream
 npm ci
 npm run build
@@ -47,7 +47,7 @@ examples use the package's public import path. From a checkout, examples in
 ## Quick start: planar geometry
 
 ```js
-import { buildQuadstream } from '@quadstream/core';
+import { buildQuadstream } from '@vizhub/quadstream';
 
 const source = {
   type: 'FeatureCollection',
@@ -81,7 +81,7 @@ great-circle globe geometry.
 ```js
 import {
   exportPartitions, QuadstreamSession, QuadstreamLoader, fetchFromBundle
-} from '@quadstream/core';
+} from '@vizhub/quadstream';
 
 const bundle = exportPartitions(dataset, { fileDepth: 3 });
 const session = new QuadstreamSession(bundle.manifest);
@@ -111,7 +111,7 @@ degrees with D3 spherical winding (clockwise small polygon interiors).
 The following example assumes a TopoJSON atlas is already loaded:
 
 ```js
-import { buildSphericalQuadstream, importSphericalTopoJSON } from '@quadstream/core';
+import { buildSphericalQuadstream, importSphericalTopoJSON } from '@vizhub/quadstream';
 
 const countries = importSphericalTopoJSON(atlas, 'countries');
 const globe = buildSphericalQuadstream(countries, { maxLevel: 20 });
@@ -124,7 +124,7 @@ stable vertex-ID hashing; shared-arc promotion repairs invalid features without
 a global full-detail fallback. They do not support
 planar viewport bounds, v1 partition serialization or network streaming.
 They may reject inputs that cannot be validated in the reference hemisphere
-chart. See [spherical semantics](https://github.com/curran/quadstream/blob/master/docs/SPHERICAL.md).
+chart. See [spherical semantics](https://github.com/vizhub-studio/quadstream/blob/master/docs/SPHERICAL.md).
 
 ## Interactive demos
 
@@ -138,8 +138,8 @@ From a checkout, install dependencies and build, then run either command:
 Open the local URL printed by the server (normally http://127.0.0.1:4173/).
 The demos are not included in the npm artifact. The globe downloads the full
 atlas up front; its LOD reduction is not a bandwidth-saving streaming protocol.
-See [map demo](https://github.com/curran/quadstream/blob/master/docs/PROGRESSIVE-MAP.md)
-and [globe demo](https://github.com/curran/quadstream/blob/master/docs/GLOBE.md).
+See [map demo](https://github.com/vizhub-studio/quadstream/blob/master/docs/PROGRESSIVE-MAP.md)
+and [globe demo](https://github.com/vizhub-studio/quadstream/blob/master/docs/GLOBE.md).
 
 ## CLI
 
@@ -155,7 +155,7 @@ npx --no-install quadstream benchmark countries.geojson --iterations 3
 ```
 
 The CLI currently operates on planar coordinates. Query output and build
-directories must not already exist. See [CLI and format policy](https://github.com/curran/quadstream/blob/master/docs/CLI.md)
+directories must not already exist. See [CLI and format policy](https://github.com/vizhub-studio/quadstream/blob/master/docs/CLI.md)
 for input restrictions, bounds, exit codes and static staging.
 
 ## Public API guide
@@ -170,7 +170,7 @@ for input restrictions, bounds, exit codes and static staging.
 | `ProgressiveMap`, `attachMapLibre`, `mapLibreBounds` | Renderer-independent orchestration and MapLibre integration |
 | `buildTopology`, `buildSparseQuadtree`, `buildBlgTree`, `createSpatialIndex` | Lower-level algorithm building blocks |
 
-See the [export list](https://github.com/curran/quadstream/blob/master/src/index.ts)
+See the [export list](https://github.com/vizhub-studio/quadstream/blob/master/src/index.ts)
 and included TypeScript declarations for complete signatures and utilities.
 
 ## Detailed API reference
@@ -365,8 +365,8 @@ from topology metadata.
   production resource hardening remain future work.
 - Binary checksums detect accidental corruption, not malicious changes.
 
-See the [architecture](https://github.com/curran/quadstream/blob/master/docs/ARCHITECTURE.md)
-and [roadmap](https://github.com/curran/quadstream/blob/master/plans/PROJECT_ROADMAP.md)
+See the [architecture](https://github.com/vizhub-studio/quadstream/blob/master/docs/ARCHITECTURE.md)
+and [roadmap](https://github.com/vizhub-studio/quadstream/blob/master/plans/PROJECT_ROADMAP.md)
 for implementation details and planned work.
 
 ## Development
@@ -384,15 +384,14 @@ Use `npm run prettier` to format maintained sources. CI retains Node 26 and Chro
 packed-package verification for Node 20 and 26. The real-atlas globe tests
 compare original and full-resolution reconstruction across multiple views and
 zoom levels. Physical mobile-device validation and production benchmarks remain
-outstanding. See [contributing](https://github.com/curran/quadstream/blob/master/CONTRIBUTING.md).
+outstanding. See [contributing](https://github.com/vizhub-studio/quadstream/blob/master/CONTRIBUTING.md).
 
 ## History and license
 
 Quadstream revives research and prototypes from 2010–2012 in a self-contained
-modern TypeScript implementation. See [historical provenance](https://github.com/curran/quadstream/blob/master/docs/HISTORY.md).
+modern TypeScript implementation. See [historical provenance](https://github.com/vizhub-studio/quadstream/blob/master/docs/HISTORY.md).
 
 Run `npm run build` and `npm run demo:globe`. This geometry-only D3 Canvas demo includes touch rotation and repeated pinch zoom, real atlas inputs, Quadstream/original comparison, and render-time view culling and spherical clipping (`?clip=0` to disable; the engine query itself is not viewport-aware). See [globe controls, provenance and limitations](docs/GLOBE.md).
 The modern implementation is MIT-licensed. Historical Java/browser code
-retains its existing license terms, including the original LGPL declaration.
-See [LICENSE](https://github.com/curran/quadstream/blob/master/LICENSE) and
-[LICENSE-NOTICE.md](https://github.com/curran/quadstream/blob/master/LICENSE-NOTICE.md).
+retains its existing license terms.
+See [LICENSE](https://github.com/vizhub-studio/quadstream/blob/master/LICENSE).
