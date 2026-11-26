@@ -1,9 +1,12 @@
 // Adapted from VizHub rPa9vFJ0kEvpjaJn-280C (MIT). Geometry only.
-export function createGlobeRenderer(d3, ctx) {
+import { filterVisibleFeatures } from "./cull.mjs";
+
+export function createGlobeRenderer(d3, ctx, { cull = false } = {}) {
   const projection = d3.geoOrthographic(),
     path = d3.geoPath(projection, ctx),
     graticule = d3.geoGraticule()();
   const sphere = { type: "Sphere" };
+  const capCache = cull ? new WeakMap() : null;
   let oceanKey;
   let ocean;
   function drawShape(g, fill, stroke) {
@@ -58,9 +61,12 @@ export function createGlobeRenderer(d3, ctx) {
     ctx.strokeStyle = "#8f86d9";
     ctx.globalAlpha = 0.9;
     ctx.lineWidth = 0.5;
-    if (geojson?.features?.length) {
+    const target = cull
+      ? filterVisibleFeatures(geojson, state, capCache)
+      : geojson;
+    if (target?.features?.length) {
       ctx.beginPath();
-      path(geojson);
+      path(target);
       ctx.fill();
       ctx.stroke();
     }

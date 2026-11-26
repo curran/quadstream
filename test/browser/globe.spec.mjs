@@ -393,3 +393,58 @@ test("wheel zoom-in and zoom-out update auto LOD monotonically without oscillati
     expect(outLevels[i]).toBeLessThanOrEqual(outLevels[i - 1]);
   expect(outLevels.at(-1)).toBeLessThan(outLevels[0]);
 });
+test("opt-in bounding-cap culling matches unculled pixels across Atlantic, Pacific, and polar views", async ({
+  page,
+}) => {
+  await page.goto("/examples/globe/index.html");
+  await ready(page);
+  const mismatches = await page.evaluate(async () => {
+    const [{ createGlobeRenderer }, { decodeCountries }] = await Promise.all([
+      import("/examples/globe/map.mjs"),
+      import("/examples/globe/geometry.mjs"),
+    ]);
+    const topo = await (
+      await fetch("/node_modules/world-atlas/countries-110m.json")
+    ).json();
+    const fc = decodeCountries(topo, globalThis.topojson);
+    const width = 400,
+      height = 300;
+    const make = (cull) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      return { ctx, draw: createGlobeRenderer(globalThis.d3, ctx, { cull }) };
+    };
+    const a = make(false),
+      b = make(true);
+    const out = [];
+    for (const [name, rotation] of [
+      ["Atlantic", [0, -20, 0]],
+      ["Pacific", [180, 4, 0]],
+      ["NorthPole", [0, 88, 0]],
+      ["SouthPole", [0, -92, 0]],
+    ]) {
+      for (const zoom of [1, 3]) {
+        const st = {
+          width,
+          height,
+          rotation,
+          scale: 120 * zoom,
+          translation: [width / 2, height / 2],
+          interacting: false,
+          dpr: 1,
+        };
+        a.draw(st, fc);
+        b.draw(st, fc);
+        const da = a.ctx.getImageData(0, 0, width, height).data,
+          db = b.ctx.getImageData(0, 0, width, height).data;
+        let diff = 0;
+        for (let i = 0; i < da.length; i++) if (da[i] !== db[i]) diff++;
+        if (diff > 0) out.push({ name, zoom, diff });
+      }
+    }
+    return out;
+  });
+  expect(mismatches).toEqual([]);
+});

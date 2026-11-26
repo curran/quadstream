@@ -15,7 +15,7 @@ const $ = (id) => document.getElementById(id),
   canvas = $("globe"),
   status = $("status"),
   ctx = canvas.getContext("2d");
-const draw = createGlobeRenderer(globalThis.d3, ctx);
+const draw = createGlobeRenderer(globalThis.d3, ctx, { cull: true });
 const state = {
   rotation: [0, -20, 0],
   interacting: false,
