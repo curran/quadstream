@@ -192,7 +192,7 @@ test("GlobeWorkerClient transfers ArrayBuffers and reconstructs frame.geojson fr
   assert.deepEqual(frame.geojson, expectedGeojson);
   assert.deepEqual(
     Object.fromEntries(Object.entries(frame).filter(([k]) => k !== "geojson")),
-    expectedRest,
+    { ...expectedRest, seq: 2 },
   );
   client.dispose();
 });

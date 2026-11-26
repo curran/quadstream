@@ -119,6 +119,42 @@ test("LRU cache retains >=10 tenths levels, refreshes recency on hit, and evicts
   assert.equal(engine.query(0.1).cached, false);
 });
 
+test("queryInterruptible matches query when un-aborted and aborts mid-run when signalled", async () => {
+  const atlasPath = require.resolve("world-atlas/countries-110m.json");
+  const topo = JSON.parse(await readFile(atlasPath, "utf8"));
+  const original = decodeCountries(topo, topojson);
+  const engine = createGlobeGeometry(original, d3);
+
+  const syncFrame = engine.query(7.3);
+  const engine2 = createGlobeGeometry(original, d3);
+  let yields = 0;
+  const asyncFrame = await engine2.queryInterruptible(7.3, {
+    shouldAbort: () => false,
+    yieldTurn: async () => {
+      yields++;
+    },
+    sliceMs: 1,
+  });
+  assert.ok(yields > 0);
+  assert.equal(asyncFrame.vertices, syncFrame.vertices);
+  assert.equal(asyncFrame.level, syncFrame.level);
+  assert.deepEqual(asyncFrame.geojson, syncFrame.geojson);
+
+  const engine3 = createGlobeGeometry(original, d3);
+  let aborted = false;
+  let abortYields = 0;
+  const cancelled = await engine3.queryInterruptible(8.1, {
+    shouldAbort: () => aborted,
+    yieldTurn: async () => {
+      abortYields++;
+      aborted = true;
+    },
+    sliceMs: 1,
+  });
+  assert.equal(cancelled, null);
+  assert.equal(abortYields, 1);
+});
+
 test("world-atlas countries-110m query at levels 0, 5.5, 7.3, 19 has zero invalid groups", async () => {
   const atlasPath = require.resolve("world-atlas/countries-110m.json");
   const topology = JSON.parse(await readFile(atlasPath, "utf8"));

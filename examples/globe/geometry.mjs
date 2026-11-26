@@ -213,73 +213,128 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
   const reasons = [
     ...new Set(groups.filter((g) => g.error).map((g) => g.error)),
   ].slice(0, 4);
-  function query(requested) {
-    if (!Number.isFinite(requested) || requested < 0 || requested >= maxLevel)
-      throw new Error("Invalid globe detail level");
-    // Levels are quantized to tenths so float noise (7.300000001) shares one cache entry.
-    const level = Math.round(requested * 10) / 10;
-    if (cache.has(level)) {
-      const hit = cache.get(level);
-      cache.delete(level);
-      cache.set(level, hit);
-      return { ...hit, cached: true, queryMs: 0 };
+  function cacheHit(level) {
+    if (!cache.has(level)) return null;
+    const hit = cache.get(level);
+    cache.delete(level);
+    cache.set(level, hit);
+    return { ...hit, cached: true, queryMs: 0 };
+  }
+  function saveFrame(level, frame) {
+    cache.set(level, frame);
+    if (cache.size > 48) cache.delete(cache.keys().next().value);
+    return frame;
+  }
+  function prepareOut(level) {
+    return level === maxLevel - 1
+      ? [...features]
+      : features.map((feature) => ({
+          ...feature,
+          geometry: removeDegenerateRings(feature.geometry),
+        }));
+  }
+  function applyGroup(g, selected, level, out, stats) {
+    const compatible =
+      (selected.valid && level < maxLevel - 1) ||
+      selected.geojson.features.every((f, j) =>
+        d3Compatible(features[g.indices[j]], f, d3, level === maxLevel - 1),
+      );
+    if (!selected.valid) stats.validatorInvalidGroups++;
+    if (!compatible) stats.invalidGroups++;
+    stats.effectiveLevels.push(level);
+    for (let j = 0; j < g.indices.length; j++) {
+      const i = g.indices[j];
+      out[i] = {
+        ...features[i],
+        geometry:
+          level === maxLevel - 1
+            ? selected.geojson.features[j].geometry
+            : removeDegenerateRings(selected.geojson.features[j].geometry),
+      };
     }
-    const start = clock(),
-      out =
-        level === maxLevel - 1
-          ? [...features]
-          : features.map((feature) => ({
-              ...feature,
-              geometry: removeDegenerateRings(feature.geometry),
-            }));
-    let fallbackGroups = 0,
-      invalidGroups = 0,
-      validatorInvalidGroups = 0;
-    const effectiveLevels = [];
-    for (const g of groups) {
-      if (!g.engine) {
-        fallbackGroups++;
-        continue;
-      }
-      const selected = g.engine.query({ level }),
-        compatible =
-          (selected.valid && level < maxLevel - 1) ||
-          selected.geojson.features.every((f, j) =>
-            d3Compatible(features[g.indices[j]], f, d3, level === maxLevel - 1),
-          );
-      if (!selected.valid) validatorInvalidGroups++;
-      if (!compatible) invalidGroups++;
-      effectiveLevels.push(level);
-      for (let j = 0; j < g.indices.length; j++) {
-        const i = g.indices[j];
-        out[i] = {
-          ...features[i],
-          geometry:
-            level === maxLevel - 1
-              ? selected.geojson.features[j].geometry
-              : removeDegenerateRings(selected.geojson.features[j].geometry),
-        };
-      }
-    }
+  }
+  function finalize(level, start, out, stats) {
     const geojson = { type: "FeatureCollection", features: out };
-    const frame = {
+    return saveFrame(level, {
       level,
       geojson,
       sourceVertices,
       vertices: vertexCount(geojson),
       buildMs,
       queryMs: clock() - start,
-      fallbackGroups,
-      invalidGroups,
-      validatorInvalidGroups,
+      fallbackGroups: stats.fallbackGroups,
+      invalidGroups: stats.invalidGroups,
+      validatorInvalidGroups: stats.validatorInvalidGroups,
       unavailable,
       reasons,
-      effectiveLevels,
+      effectiveLevels: stats.effectiveLevels,
       cached: false,
-    };
-    cache.set(level, frame);
-    if (cache.size > 48) cache.delete(cache.keys().next().value);
-    return frame;
+    });
   }
-  return { query, sourceVertices, buildMs, unavailable, reasons };
+  function query(requested) {
+    if (!Number.isFinite(requested) || requested < 0 || requested >= maxLevel)
+      throw new Error("Invalid globe detail level");
+    // Levels are quantized to tenths so float noise (7.300000001) shares one cache entry.
+    const level = Math.round(requested * 10) / 10;
+    const hit = cacheHit(level);
+    if (hit) return hit;
+    const start = clock(),
+      out = prepareOut(level),
+      stats = {
+        fallbackGroups: 0,
+        invalidGroups: 0,
+        validatorInvalidGroups: 0,
+        effectiveLevels: [],
+      };
+    for (const g of groups) {
+      if (!g.engine) {
+        stats.fallbackGroups++;
+        continue;
+      }
+      applyGroup(g, g.engine.query({ level }), level, out, stats);
+    }
+    return finalize(level, start, out, stats);
+  }
+  async function queryInterruptible(
+    requested,
+    { shouldAbort, yieldTurn, sliceMs = 8 } = {},
+  ) {
+    if (!Number.isFinite(requested) || requested < 0 || requested >= maxLevel)
+      throw new Error("Invalid globe detail level");
+    const level = Math.round(requested * 10) / 10;
+    const hit = cacheHit(level);
+    if (hit) return hit;
+    if (shouldAbort?.()) return null;
+    const start = clock(),
+      out = prepareOut(level),
+      stats = {
+        fallbackGroups: 0,
+        invalidGroups: 0,
+        validatorInvalidGroups: 0,
+        effectiveLevels: [],
+      };
+    for (const g of groups) {
+      if (!g.engine) {
+        stats.fallbackGroups++;
+        continue;
+      }
+      const selected = await g.engine.queryInterruptible({
+        level,
+        shouldAbort,
+        yieldTurn,
+        sliceMs,
+      });
+      if (!selected || shouldAbort?.()) return null;
+      applyGroup(g, selected, level, out, stats);
+    }
+    return finalize(level, start, out, stats);
+  }
+  return {
+    query,
+    queryInterruptible,
+    sourceVertices,
+    buildMs,
+    unavailable,
+    reasons,
+  };
 }

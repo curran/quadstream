@@ -367,3 +367,29 @@ test("failed local file surfaces an error and fixture reload recovers", async ({
   await ready(page);
   expect((await state(page)).source).toBeGreaterThan(0);
 });
+test("wheel zoom-in and zoom-out update auto LOD monotonically without oscillating", async ({
+  page,
+}) => {
+  await page.goto("/examples/globe/index.html");
+  await ready(page);
+  const box = await globe(page).boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const inLevels = [(await state(page)).level];
+  for (let i = 0; i < 8; i++) {
+    await page.mouse.wheel(0, -180);
+    await ready(page);
+    inLevels.push((await state(page)).level);
+  }
+  for (let i = 1; i < inLevels.length; i++)
+    expect(inLevels[i]).toBeGreaterThanOrEqual(inLevels[i - 1]);
+  expect(inLevels.at(-1)).toBeGreaterThan(inLevels[0]);
+  const outLevels = [inLevels.at(-1)];
+  for (let i = 0; i < 8; i++) {
+    await page.mouse.wheel(0, 180);
+    await ready(page);
+    outLevels.push((await state(page)).level);
+  }
+  for (let i = 1; i < outLevels.length; i++)
+    expect(outLevels[i]).toBeLessThanOrEqual(outLevels[i - 1]);
+  expect(outLevels.at(-1)).toBeLessThan(outLevels[0]);
+});

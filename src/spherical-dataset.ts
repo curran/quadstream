@@ -165,6 +165,11 @@ export function importSphericalTopoJSON(
 export interface SphericalQueryOptions {
   level?: number;
 }
+export interface SphericalInterruptOptions extends SphericalQueryOptions {
+  shouldAbort?: () => boolean;
+  yieldTurn?: () => Promise<void>;
+  sliceMs?: number;
+}
 /** Geographic in-memory dataset. No planar viewport index or v1 partition serialization. */
 export class SphericalQuadstreamDataset {
   readonly coordinateMode = "spherical-d3" as const;
@@ -260,6 +265,14 @@ export class SphericalQuadstreamDataset {
       });
     }
     const valid = ok.every(Boolean);
+    return this.formatResult(level, results, valid, promotedArcs);
+  }
+  private formatResult(
+    level: number,
+    results: ReturnType<typeof reconstructFeature>[],
+    valid: boolean,
+    promotedArcs: number,
+  ): QueryResult {
     return {
       geojson: {
         type: "FeatureCollection",
@@ -280,6 +293,94 @@ export class SphericalQuadstreamDataset {
       selectedFeatures: results.length,
       selectedVertices: results.reduce((n, r) => n + r.selectedVertices, 0),
     };
+  }
+  async queryInterruptible(
+    options: SphericalInterruptOptions = {},
+  ): Promise<QueryResult | null> {
+    if ("bounds" in options || "validate" in options)
+      throw new Error("Spherical queries require global validated retrieval");
+    const { level: requested, shouldAbort, yieldTurn, sliceMs = 8 } = options;
+    const level = requested ?? this.priorities.maxLevel - 1;
+    if (
+      !Number.isFinite(level) ||
+      level < 0 ||
+      level >= this.priorities.maxLevel
+    )
+      throw new Error("Invalid spherical query level");
+    if (shouldAbort?.()) return null;
+    const lookup = (id: number): Position | undefined => {
+      const v = this.topology.vertices[id];
+      return v ? [v.x, v.y] : undefined;
+    };
+    const full = this.priorities.maxLevel - 1;
+    const promoted = new Map<number, number>();
+    let promotedArcs = 0;
+    const levelOf = (arcId: number) => promoted.get(arcId) ?? level;
+    const check = (i: number, r: ReturnType<typeof reconstructFeature>) => {
+      const p = polygons(r.feature.geometry),
+        s = this.signatures[i]!;
+      return (
+        !r.missing &&
+        p.length === s.length &&
+        p.every((g, j) => validSphericalPolygon(g, s[j]!)) &&
+        lines(r.feature.geometry).every(validGreatCirclePath)
+      );
+    };
+    const run = (f: Topology["features"][number]) =>
+      reconstructFeature(
+        f,
+        this.topology.arcs,
+        this.arcTrees,
+        levelOf,
+        lookup,
+        false,
+        false,
+      );
+    const results: ReturnType<typeof reconstructFeature>[] = [];
+    const ok: boolean[] = [];
+    let sliceStart = performance.now();
+    for (let i = 0; i < this.topology.features.length; i++) {
+      const r = run(this.topology.features[i]!);
+      results.push(r);
+      ok.push(check(i, r));
+      if (yieldTurn && performance.now() - sliceStart >= sliceMs) {
+        await yieldTurn();
+        if (shouldAbort?.()) return null;
+        sliceStart = performance.now();
+      }
+    }
+    for (let pass = 0; pass <= full + 1; pass++) {
+      const touched = new Set<number>();
+      ok.forEach((good, i) => {
+        if (good) return;
+        for (const path of this.topology.features[i]!.paths)
+          for (const ref of path.arcs) {
+            const id = Math.abs(ref) - 1,
+              cur = levelOf(id);
+            if (cur >= full) continue;
+            promoted.set(id, Math.min(full, Math.floor(cur) + 1));
+            touched.add(id);
+          }
+      });
+      if (!touched.size) break;
+      promotedArcs = promoted.size;
+      for (let i = 0; i < this.topology.features.length; i++) {
+        const f = this.topology.features[i]!;
+        if (
+          f.paths.some((p) => p.arcs.some((r) => touched.has(Math.abs(r) - 1)))
+        ) {
+          results[i] = run(f);
+          ok[i] = check(i, results[i]!);
+          if (yieldTurn && performance.now() - sliceStart >= sliceMs) {
+            await yieldTurn();
+            if (shouldAbort?.()) return null;
+            sliceStart = performance.now();
+          }
+        }
+      }
+    }
+    if (shouldAbort?.()) return null;
+    return this.formatResult(level, results, ok.every(Boolean), promotedArcs);
   }
 }
 export function buildSphericalQuadstream(

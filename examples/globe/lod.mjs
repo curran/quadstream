@@ -14,9 +14,8 @@ export function levelForScale(
   const prior = Math.max(min, Math.min(max, previous));
   const priorBand = Math.floor(prior);
   if (clamped >= priorBand + 1 && clamped < priorBand + 1 + hysteresis)
-    return priorBand;
-  if (clamped < priorBand && clamped >= priorBand - hysteresis)
-    return priorBand;
+    return prior;
+  if (clamped < priorBand && clamped >= priorBand - hysteresis) return prior;
   return clamped;
 }
 export function quantizeAutoLevel(level, interacting = false) {
@@ -26,6 +25,7 @@ export function quantizeAutoLevel(level, interacting = false) {
 }
 export function createLatestGeometry({ request, onFrame, onError = () => {} }) {
   let generation = 0,
+    lastSeq = 0,
     desired = null,
     disposed = false;
   const cache = new Map();
@@ -36,13 +36,21 @@ export function createLatestGeometry({ request, onFrame, onError = () => {} }) {
       const id = ++generation;
       try {
         let frame = cache.get(level);
+        const fromCache = Boolean(frame);
         if (!frame) {
           frame = await request(level);
           if (disposed || id !== generation) return;
           cache.set(level, frame);
           if (cache.size > 4) cache.delete(cache.keys().next().value);
         }
-        if (!disposed && id === generation) onFrame(frame);
+        if (!disposed && id === generation) {
+          const seq = frame?.seq;
+          if (!fromCache && seq != null) {
+            if (seq < lastSeq) return;
+            lastSeq = seq;
+          }
+          onFrame(frame);
+        }
       } catch (e) {
         if (!disposed && id === generation) {
           desired = null;
@@ -52,12 +60,14 @@ export function createLatestGeometry({ request, onFrame, onError = () => {} }) {
     },
     invalidate() {
       generation++;
+      lastSeq = 0;
       desired = null;
       cache.clear();
     },
     dispose() {
       disposed = true;
       generation++;
+      lastSeq = 0;
       cache.clear();
     },
     get target() {

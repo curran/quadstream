@@ -236,7 +236,25 @@ test("LOD clamps, follows absolute scale and uses hysteresis in both directions"
   assert.equal(levelForScale(270, 4), 5.169925001442312);
   assert.equal(levelForScale(235, 5), 5);
   assert.equal(levelForScale(210, 5), 4.807354922057604);
+  // Fractional boundary crossing must not snap backward to Math.floor(previous).
+  assert.ok(levelForScale(120 * Math.pow(2, 3.05), 6.8) >= 6.8);
+  assert.ok(levelForScale(120 * Math.pow(2, 1.9), 6.2) >= 5.9);
   assert.throws(() => levelForScale(0));
+});
+test("createLatestGeometry drops out-of-order seq frames even if generation matches", async () => {
+  const frames = [];
+  let seq = 0;
+  const c = createLatestGeometry({
+    request: async (l) => ({ level: l, seq: l === 5 ? 10 : 5 }),
+    onFrame: (f) => frames.push(f),
+  });
+  await c.select(5);
+  await c.select(4);
+  assert.deepEqual(
+    frames.map((f) => f.level),
+    [5],
+  );
+  void seq;
 });
 const deferred = () => {
   let resolve, reject;

@@ -42,13 +42,15 @@ export class GlobeWorkerClient {
   }
   async query(level) {
     const res = await this.send("query", { level });
+    const seq = res.frame?.seq ?? res.id;
     if (res.coords && res.meta) {
       return {
         ...res.frame,
+        seq,
         geojson: unpackGeometry(this.original, res.coords, res.meta),
       };
     }
-    return res.frame;
+    return { ...res.frame, seq };
   }
   dispose(error = new DOMException("Cancelled", "AbortError")) {
     if (this.closed) return;

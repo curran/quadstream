@@ -6,9 +6,25 @@ import { packGeometry } from "./wire.mjs";
 let engine;
 let queue = [];
 let running = false;
-function respond(m, work) {
+let latestQueryId = 0;
+const channel = new MessageChannel();
+const waiters = [];
+channel.port1.onmessage = () => {
+  const resolve = waiters.shift();
+  if (resolve) resolve();
+};
+const yieldTurn = () =>
+  new Promise((resolve) => {
+    waiters.push(resolve);
+    channel.port2.postMessage(null);
+  });
+async function respond(m, work) {
   try {
-    const payload = work();
+    const payload = await work();
+    if (!payload) {
+      self.postMessage({ id: m.id, superseded: true });
+      return;
+    }
     const transfer =
       payload.coords && payload.meta
         ? [payload.coords.buffer, payload.meta.buffer]
@@ -19,20 +35,20 @@ function respond(m, work) {
     self.postMessage({ id: m.id, error: String(e.message ?? e) });
   }
 }
-// Latest-wins: queries that arrive while another is computing are dropped
-// except for the newest, so continuous zoom/slider input never builds a backlog.
+// Latest-wins with cooperative mid-run cancellation: incoming messages update
+// latestQueryId immediately, and queryInterruptible yields via MessageChannel
+// between ~8ms slices so superseded queries abort mid-flight.
 async function drain() {
   if (running) return;
   running = true;
   while (queue.length) {
-    // Yield a task so messages already posted are received before choosing.
-    await new Promise((r) => setTimeout(r, 0));
+    await yieldTurn();
     const batch = queue;
     queue = [];
     const last = batch.findLastIndex((m) => m.type === "query");
     for (const [i, m] of batch.entries()) {
       if (m.type === "init")
-        respond(m, () => {
+        await respond(m, () => {
           const original = decodeCountries(m.source, self.topojson);
           engine = createGlobeGeometry(original, self.d3);
           return {
@@ -43,20 +59,26 @@ async function drain() {
             reasons: engine.reasons,
           };
         });
-      else if (i !== last) self.postMessage({ id: m.id, superseded: true });
+      else if (i !== last || m.id !== latestQueryId)
+        self.postMessage({ id: m.id, superseded: true });
       else
-        respond(m, () => {
+        await respond(m, async () => {
           if (!engine) throw new Error("Geometry worker not initialized");
-          const frame = engine.query(m.level);
+          const frame = await engine.queryInterruptible(m.level, {
+            shouldAbort: () => m.id !== latestQueryId,
+            yieldTurn,
+          });
+          if (!frame || m.id !== latestQueryId) return null;
           const { geojson, ...rest } = frame;
           const { coords, meta } = packGeometry(geojson);
-          return { frame: rest, coords, meta };
+          return { frame: { ...rest, seq: m.id }, coords, meta };
         });
     }
   }
   running = false;
 }
 self.onmessage = ({ data }) => {
+  if (data.type === "query") latestQueryId = data.id;
   queue.push(data);
   drain();
 };
