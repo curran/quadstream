@@ -56,7 +56,7 @@ test("shared borders remain identical for every globe LOD", () => {
     new Set(
       f.geometry.coordinates[0].filter(([x]) => x === 0).map(JSON.stringify),
     );
-  for (let l = 0; l < 20; l++) {
+  for (const l of [...Array.from({ length: 20 }, (_, i) => i), 4.1, 4.5, 7.5]) {
     const r = engine.query(l);
     assert.deepEqual(
       border(r.geojson.features[0]),
@@ -212,7 +212,15 @@ test("real pinned 110m atlas retains all countries, IDs, D3 interiors and full-d
   assert.equal(lod7.invalidGroups, 0);
   assert.ok(lod7.validatorInvalidGroups >= 0);
   let previousVertices = 0;
-  for (let level = 7; level < 20; level++) {
+  for (const level of [
+    7,
+    7.1,
+    7.5,
+    7.9,
+    8,
+    8.5,
+    ...Array.from({ length: 11 }, (_, i) => i + 9),
+  ]) {
     const result = engine.query(level);
     assert.deepEqual(
       result.geojson.features.map((f) => f.id),

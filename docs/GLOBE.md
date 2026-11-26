@@ -88,3 +88,21 @@ synthetic PointerEvents; WebKit exercises the pointer events. These are not
 physical iOS/Android hardware tests. CI uses Node 26 only. Before declaring
 mobile parity, manually verify on iPhone Safari and Android Chrome, including
 consecutive pinches, interruptions, orientation changes and rotation at zoom.
+
+## Fractional LOD and repair
+
+The slider accepts tenth-level values and auto detail derives a continuous
+level from projection scale. Level `n.f` keeps every vertex with priority
+`<= n` plus the fraction `f` of priority `n + 1` vertices whose stable random
+value (a hash of the global vertex ID, never `Math.random()`) is at least
+`1 - f`. Selections are nested and deterministic, and shared arcs make
+identical choices on both sides of a border. Critical vertices and arc
+endpoints are never thinned.
+
+Thinning is only a candidate. `SphericalQuadstreamDataset.query` validates each
+feature and promotes every arc of an invalid feature to the next integer level
+until it is valid. Arcs are shared, so neighbours stay identical.
+`promotedArcs` reports how many arcs were promoted. Features that remain
+invalid at full detail (malformed source) are isolated by the globe layer.
+Small (<30 vertex) dips in vertex count can occur at a fractional level where
+repair promotes arcs.

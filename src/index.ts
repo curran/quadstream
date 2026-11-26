@@ -4,6 +4,7 @@ export { buildSparseQuadtree, cellKey, cellAddress } from "./quadtree.js";
 export {
   buildBlgTree,
   selectBlgPositions,
+  stableBlgRandom,
   assertBlgInvariants,
 } from "./blg.js";
 export { createSpatialIndex } from "./spatial-index.js";

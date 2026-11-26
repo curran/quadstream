@@ -384,6 +384,19 @@ test("BLG tree preserves every index and nested selections across levels", () =>
   );
   assert.throws(() => buildBlgTree([0, -1]), /nonnegative/);
 });
+test("BLG fractional levels use stable per-node thresholds", () => {
+  const levels = [0, 5, 5, 5, 6],
+    a = buildBlgTree(levels),
+    b = buildBlgTree(levels),
+    partial = new Set(selectBlgPositions(a, 5.5));
+  assert.equal(a.root?.random, b.root?.random);
+  assert.deepEqual(selectBlgPositions(a, 5), [0, 1, 2, 3]);
+  assert.ok(partial.has(0));
+  assert.ok([...partial].every((position) => levels[position] <= 6));
+  assert.ok(partial.size >= 4 && partial.size <= 5);
+  assert.deepEqual(selectBlgPositions(a, 5.5), selectBlgPositions(b, 5.5));
+  assert.deepEqual(selectBlgPositions(a, 6), [0, 1, 2, 3, 4]);
+});
 
 test("BLG handles long sorted and equal-level sequences without recursion", () => {
   for (const levels of [

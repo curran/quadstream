@@ -9,12 +9,15 @@ export function levelForScale(
   if (!Number.isFinite(scale) || scale <= 0)
     throw new Error("Invalid projection scale");
   const continuous = min + Math.log2(scale / base);
-  if (previous === undefined)
-    return Math.max(min, Math.min(max, Math.floor(continuous)));
-  let level = Math.max(min, Math.min(max, previous));
-  while (level < max && continuous >= level + 1 + hysteresis) level++;
-  while (level > min && continuous < level - hysteresis) level--;
-  return level;
+  const clamped = Math.max(min, Math.min(max, continuous));
+  if (previous === undefined) return clamped;
+  const prior = Math.max(min, Math.min(max, previous));
+  const priorBand = Math.floor(prior);
+  if (clamped >= priorBand + 1 && clamped < priorBand + 1 + hysteresis)
+    return priorBand;
+  if (clamped < priorBand && clamped >= priorBand - hysteresis)
+    return priorBand;
+  return clamped;
 }
 export function createLatestGeometry({ request, onFrame, onError = () => {} }) {
   let generation = 0,

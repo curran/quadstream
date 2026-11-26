@@ -74,6 +74,8 @@ export interface QueryResult {
   /** Whether the requested reconstruction passed the dataset's validity checks. */
   valid: boolean;
   usedFallback: boolean;
+  /** Spherical queries: arcs promoted to a finer level to keep features valid. */
+  promotedArcs?: number;
   selectedFeatures: number;
   selectedVertices: number;
 }

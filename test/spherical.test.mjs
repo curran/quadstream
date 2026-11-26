@@ -439,7 +439,7 @@ test("shared polygon boundaries remain identical at every level and BLG selectio
     assert.ok(validSphericalPolygon(b.geometry.coordinates));
   }
 });
-test("coarse spherical queries expose invalid geometry without fallback", () => {
+test("coarse spherical queries repair invalid geometry by promoting shared arcs", () => {
   const d = buildSphericalQuadstream(
     fc(
       feature(line([0, 0], [90, 0], [180, 0]), "long"),
@@ -448,7 +448,10 @@ test("coarse spherical queries expose invalid geometry without fallback", () => 
   );
   const coarse = d.query({ level: 0 });
   assert.equal(coarse.usedFallback, false);
-  assert.equal(coarse.valid, false);
+  assert.equal(coarse.valid, true);
+  assert.ok(coarse.promotedArcs > 0);
+  assert.equal(d.query({ level: 0.5 }).valid, true);
+  assert.equal(d.query().promotedArcs, 0);
   assert.equal(d.query().usedFallback, false);
 });
 test("multipolygon and multiline retain structure at every level", () => {
@@ -494,7 +497,6 @@ test("unsupported bounds and disabled validation fail closed", () => {
     { validate: false },
     { level: -1 },
     { level: 20 },
-    { level: 0.5 },
   ])
     assert.throws(() => d.query(opts));
   assert.throws(() =>

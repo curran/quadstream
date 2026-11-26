@@ -44,10 +44,10 @@ spherical arrangement solver; near-degenerate geometry is not a production
 correctness claim. Cross-feature intersections between unrelated arcs and
 multipolygon component overlaps are not yet checked globally.
 
-All features are reconstructed globally at the requested BLG level. Spherical
-reference checks remain diagnostic: an invalid coarse reconstruction is
-returned with `valid: false` instead of being replaced by full-detail
-coordinates. Vertices shared by three or more shapes remain critical
+All features are reconstructed globally at the requested BLG level. Invalid
+features are repaired by promoting their shared arcs to finer levels
+(`promotedArcs`); `valid: false` is returned only if a feature stays invalid
+at full detail, never replaced by a global full-detail fallback. Vertices shared by three or more shapes remain critical
 topology junctions. No geographic viewport culling is permitted yet; topology
 bounds are diagnostic only. The spherical dataset intentionally does not implement
 the planar partition/session interface. A versioned spherical artifact format,

@@ -233,9 +233,9 @@ test("LOD clamps, follows absolute scale and uses hysteresis in both directions"
   assert.equal(levelForScale(1e12), 19);
   assert.equal(levelForScale(240), 5);
   assert.equal(levelForScale(241, 4), 4);
-  assert.equal(levelForScale(270, 4), 5);
+  assert.equal(levelForScale(270, 4), 5.169925001442312);
   assert.equal(levelForScale(235, 5), 5);
-  assert.equal(levelForScale(210, 5), 4);
+  assert.equal(levelForScale(210, 5), 4.807354922057604);
   assert.throws(() => levelForScale(0));
 });
 const deferred = () => {

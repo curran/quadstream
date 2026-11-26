@@ -101,11 +101,12 @@ function requestLevel() {
   if (!ready || !latest || $("mode").value === "original") return;
   const sliderLevel = Number($("level").value),
     level = $("auto").checked
-      ? (autoLevel = levelForScale(state.scale, autoLevel))
-      : Math.round(sliderLevel);
+      ? (autoLevel =
+          Math.round(levelForScale(state.scale, autoLevel) * 10) / 10)
+      : sliderLevel;
   if ($("auto").checked) $("level").value = String(level);
   const displayLevel = $("auto").checked
-    ? String(level)
+    ? level.toFixed(1)
     : sliderLevel.toFixed(1);
   $("level-value").value = displayLevel;
   $("level-value").textContent = displayLevel;

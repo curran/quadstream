@@ -190,7 +190,7 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
     ...new Set(groups.filter((g) => g.error).map((g) => g.error)),
   ].slice(0, 4);
   function query(level) {
-    if (!Number.isInteger(level) || level < 0 || level >= maxLevel)
+    if (!Number.isFinite(level) || level < 0 || level >= maxLevel)
       throw new Error("Invalid globe detail level");
     if (cache.has(level))
       return { ...cache.get(level), cached: true, queryMs: 0 };

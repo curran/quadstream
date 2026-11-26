@@ -2,6 +2,7 @@
 export interface BlgNode {
   position: number;
   level: number;
+  random: number;
   left: BlgNode | null;
   right: BlgNode | null;
 }
@@ -9,13 +10,31 @@ export interface BlgTree {
   root: BlgNode | null;
   count: number;
 }
-export function buildBlgTree(levels: readonly number[]): BlgTree {
+export function stableBlgRandom(key: number): number {
+  let hash = Math.imul(key + 1, 0x9e3779b1);
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x85ebca6b);
+  hash ^= hash >>> 13;
+  return (hash >>> 0) / 0x100000000;
+}
+export function buildBlgTree(
+  levels: readonly number[],
+  randomValues?: readonly number[],
+): BlgTree {
+  if (randomValues && randomValues.length !== levels.length)
+    throw new Error("BLG random values must match priorities");
   const stack: BlgNode[] = [];
   for (let position = 0; position < levels.length; position++) {
     const level = levels[position]!;
     if (!Number.isFinite(level) || level < 0)
       throw new Error("BLG priorities must be nonnegative and finite");
-    const node: BlgNode = { position, level, left: null, right: null };
+    const node: BlgNode = {
+      position,
+      level,
+      random: randomValues?.[position] ?? stableBlgRandom(position),
+      left: null,
+      right: null,
+    };
     let last: BlgNode | null = null;
     while (stack.length && stack[stack.length - 1]!.level > level)
       last = stack.pop()!;
@@ -27,18 +46,31 @@ export function buildBlgTree(levels: readonly number[]): BlgTree {
 }
 /** Iterative inorder traversal: no recursion depth limitation. */
 export function selectBlgPositions(tree: BlgTree, maxLevel: number): number[] {
-  if (Number.isNaN(maxLevel)) throw new Error("Invalid selection level");
+  if (!Number.isFinite(maxLevel) && maxLevel !== Infinity)
+    throw new Error("Invalid selection level");
+  if (maxLevel < 0) throw new Error("Invalid selection level");
+  if (maxLevel === Infinity) maxLevel = Number.MAX_SAFE_INTEGER;
+  const wholeLevel = Math.floor(maxLevel),
+    fraction = maxLevel - wholeLevel,
+    partialLevel = wholeLevel + 1,
+    traversalLevel = fraction === 0 ? wholeLevel : partialLevel;
   const selected: number[] = [],
     stack: BlgNode[] = [];
   let current = tree.root;
   while (current || stack.length) {
-    while (current && current.level <= maxLevel) {
+    while (current && current.level <= traversalLevel) {
       stack.push(current);
       current = current.left;
     }
     if (!stack.length) break;
     const node = stack.pop()!;
-    selected.push(node.position);
+    if (
+      node.level <= wholeLevel ||
+      (fraction > 0 &&
+        node.level === partialLevel &&
+        (node.level === 0 || node.random >= 1 - fraction))
+    )
+      selected.push(node.position);
     current = node.right;
   }
   return selected;

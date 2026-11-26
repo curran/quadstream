@@ -190,6 +190,7 @@ export class SphericalQuadstreamDataset {
     this.arcTrees = buildArcTrees(
       this.topology.arcs,
       this.priorities.levelByVertexId,
+      this.topology.vertices.map((v) => v.critical),
     );
   }
   query(options: SphericalQueryOptions = {}): QueryResult {
@@ -197,7 +198,7 @@ export class SphericalQuadstreamDataset {
       throw new Error("Spherical queries require global validated retrieval");
     const level = options.level ?? this.priorities.maxLevel - 1;
     if (
-      !Number.isInteger(level) ||
+      !Number.isFinite(level) ||
       level < 0 ||
       level >= this.priorities.maxLevel
     )
@@ -206,20 +207,11 @@ export class SphericalQuadstreamDataset {
       const v = this.topology.vertices[id];
       return v ? [v.x, v.y] : undefined;
     };
-    const reconstruct = (detail: number) =>
-      this.topology.features.map((f) =>
-        reconstructFeature(
-          f,
-          this.topology.arcs,
-          this.arcTrees,
-          detail,
-          lookup,
-        ),
-      );
-    const results = reconstruct(level);
-    // The reconstruction helper's planar validity flag is deliberately ignored;
-    // evaluate every feature against its original spherical chart and orientation.
-    const valid = results.every((r, i) => {
+    const full = this.priorities.maxLevel - 1;
+    const promoted = new Map<number, number>();
+    let promotedArcs = 0;
+    const levelOf = (arcId: number) => promoted.get(arcId) ?? level;
+    const check = (i: number, r: ReturnType<typeof reconstructFeature>) => {
       const p = polygons(r.feature.geometry),
         s = this.signatures[i]!;
       return (
@@ -228,7 +220,38 @@ export class SphericalQuadstreamDataset {
         p.every((g, j) => validSphericalPolygon(g, s[j]!)) &&
         lines(r.feature.geometry).every(validGreatCirclePath)
       );
-    });
+    };
+    const run = (f: Topology["features"][number]) =>
+      reconstructFeature(f, this.topology.arcs, this.arcTrees, levelOf, lookup);
+    const results = this.topology.features.map(run);
+    const ok = results.map((r, i) => check(i, r));
+    // Repair: promote every arc of an invalid feature to the next integer
+    // level. Arcs are shared, so neighbours always see the same selection.
+    for (let pass = 0; pass <= full + 1; pass++) {
+      const touched = new Set<number>();
+      ok.forEach((good, i) => {
+        if (good) return;
+        for (const path of this.topology.features[i]!.paths)
+          for (const ref of path.arcs) {
+            const id = Math.abs(ref) - 1,
+              cur = levelOf(id);
+            if (cur >= full) continue;
+            promoted.set(id, Math.min(full, Math.floor(cur) + 1));
+            touched.add(id);
+          }
+      });
+      if (!touched.size) break;
+      promotedArcs = promoted.size;
+      this.topology.features.forEach((f, i) => {
+        if (
+          f.paths.some((p) => p.arcs.some((r) => touched.has(Math.abs(r) - 1)))
+        ) {
+          results[i] = run(f);
+          ok[i] = check(i, results[i]!);
+        }
+      });
+    }
+    const valid = ok.every(Boolean);
     return {
       geojson: {
         type: "FeatureCollection",
@@ -244,6 +267,7 @@ export class SphericalQuadstreamDataset {
       },
       level,
       valid,
+      promotedArcs,
       usedFallback: false,
       selectedFeatures: results.length,
       selectedVertices: results.reduce((n, r) => n + r.selectedVertices, 0),

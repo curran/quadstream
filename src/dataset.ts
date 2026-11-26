@@ -31,6 +31,7 @@ export class QuadstreamDataset {
     this.arcTrees = buildArcTrees(
       this.topology.arcs,
       this.quadtree.levelByVertexId,
+      this.topology.vertices.map((v) => v.critical),
     );
     this.featureIndex = createSpatialIndex(
       this.topology.features.map((f, i) => ({ bounds: f.bounds, value: i })),
@@ -38,11 +39,7 @@ export class QuadstreamDataset {
   }
   query(options: QueryOptions = {}): QueryResult {
     const level = options.level ?? this.quadtree.maxLevel - 1;
-    if (
-      !Number.isInteger(level) ||
-      level < 0 ||
-      level >= this.quadtree.maxLevel
-    )
+    if (!Number.isFinite(level) || level < 0 || level >= this.quadtree.maxLevel)
       throw new Error("Invalid query level");
     if (options.bounds) assertBounds(options.bounds);
     const selected = options.bounds

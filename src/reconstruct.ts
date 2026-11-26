@@ -1,5 +1,10 @@
 import { validPolygon, simpleClosedRing } from "./geometry.js";
-import { buildBlgTree, selectBlgPositions, type BlgTree } from "./blg.js";
+import {
+  buildBlgTree,
+  selectBlgPositions,
+  stableBlgRandom,
+  type BlgTree,
+} from "./blg.js";
 import type { Arc, Feature, Position, TopologyFeature } from "./types.js";
 
 export interface CoordinateLookup {
@@ -14,12 +19,14 @@ export interface ReconstructionResult {
 export function buildArcTrees(
   arcs: readonly Arc[],
   levels: readonly number[],
+  critical: readonly boolean[] = [],
 ): BlgTree[] {
   return arcs.map((arc) =>
     buildBlgTree(
       arc.vertexIds.map((id, i) =>
         i === 0 || i === arc.vertexIds.length - 1 ? 0 : levels[id]!,
       ),
+      arc.vertexIds.map((id) => (critical[id] ? 1 : stableBlgRandom(id))),
     ),
   );
 }
@@ -27,7 +34,7 @@ export function reconstructFeature(
   f: TopologyFeature,
   arcs: readonly Arc[],
   trees: readonly BlgTree[],
-  level: number,
+  level: number | ((arcId: number) => number),
   lookup: CoordinateLookup,
   includeMissing = false,
 ): ReconstructionResult {
@@ -42,7 +49,10 @@ export function reconstructFeature(
       const arcId = Math.abs(ref) - 1,
         arc = arcs[arcId]!,
         tree = trees[arcId]!;
-      const positions = selectBlgPositions(tree, level);
+      const positions = selectBlgPositions(
+        tree,
+        typeof level === "number" ? level : level(arcId),
+      );
       if (ref < 0) positions.reverse();
       const orderedIds = ref < 0 ? [...arc.vertexIds].reverse() : arc.vertexIds;
       for (const id of orderedIds)
