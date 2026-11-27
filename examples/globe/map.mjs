@@ -126,8 +126,7 @@ export function createGlobeRenderer(
   const projection = d3.geoOrthographic(),
     path = d3.geoPath(projection, ctx),
     graticule = d3.geoGraticule()(),
-    finePrecision = projection.precision(),
-    motionPrecision = 0.5;
+    finePrecision = projection.precision();
   const sphere = { type: "Sphere" };
   const capCache = cull || clip ? new WeakMap() : null;
   const quadtreeCapCache = new WeakMap();
@@ -148,17 +147,12 @@ export function createGlobeRenderer(
       rotation,
       scale,
       translation,
-      interacting,
       dpr = 1,
     } = state;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
     projection.rotate(rotation).scale(scale).translate(translation);
     ctx.save();
-    if (!interacting) {
-      ctx.shadowBlur = 12;
-      ctx.shadowColor = "#8b7cf6";
-    }
     const key = `${width}x${height}`;
     if (key !== oceanKey) {
       oceanKey = key;
@@ -178,7 +172,6 @@ export function createGlobeRenderer(
     ctx.strokeStyle = "#b7a9f5";
     ctx.lineWidth = 1.5;
     drawShape(sphere, true, true);
-    ctx.shadowBlur = 0;
     ctx.strokeStyle = "#5c5c96";
     ctx.globalAlpha = 0.4;
     ctx.lineWidth = 0.5;
@@ -196,23 +189,18 @@ export function createGlobeRenderer(
     } else if (cull)
       target = filterVisibleFeatures(geojson, state, capCache, source);
     if (target?.features?.length) {
-      // While moving, land is resampled more coarsely and drawn without its
-      // outline; the settled frame restores full precision and stroke.
-      projection.precision(interacting ? motionPrecision : finePrecision);
+      projection.precision(finePrecision);
       ctx.beginPath();
       path(target);
       ctx.fill();
-      if (interacting) {
-        let mesh = meshCache.get(target);
-        if (!mesh) {
-          mesh = meshGeometry(target);
-          meshCache.set(target, mesh);
-        }
-        ctx.beginPath();
-        path(mesh);
-        ctx.stroke();
-      } else ctx.stroke();
-      projection.precision(finePrecision);
+      let mesh = meshCache.get(target);
+      if (!mesh) {
+        mesh = meshGeometry(target);
+        meshCache.set(target, mesh);
+      }
+      ctx.beginPath();
+      path(mesh);
+      ctx.stroke();
     }
     for (const { geometry, color, width } of overlays) {
       ctx.globalAlpha = 0.9;

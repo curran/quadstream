@@ -14,7 +14,8 @@ import {
 
 const DEG = 180 / Math.PI;
 const TAU = Math.PI * 2;
-export const CLIP_MARGIN_RAD = 0.05;
+export const CLIP_MARGIN_RAD = 0;
+export const CLIP_RADIUS_SCALE = 1.2;
 export const CLIP_MAX_RADIUS_RAD = Math.PI / 2 - 0.12;
 const WALK_STEP_RAD = (4 * Math.PI) / 180;
 const CAP_MARGIN_RAD = 0.02;
@@ -667,9 +668,9 @@ export function createViewClipper({ margin = CLIP_MARGIN_RAD } = {}) {
         stats: { ...cached.stats, rebuilt: false },
       };
     const radius = Math.min(
-        CLIP_MAX_RADIUS_RAD,
-        cone.viewRadius * 1.25 + 2 * margin,
-      ),
+      CLIP_MAX_RADIUS_RAD,
+      cone.viewRadius * CLIP_RADIUS_SCALE + margin,
+    ),
       window = clipWindow(cone.vx, cone.vy, cone.vz, radius),
       { geojson: out, stats } = clipFeatureCollection(
         geojson,
