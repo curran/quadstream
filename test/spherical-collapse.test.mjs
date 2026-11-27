@@ -328,3 +328,42 @@ test("globe geometry hides tree-collapsed polygons at 50m without touching fallb
   assert.ok(coarse.hiddenPolygons <= coarse.hiddenRings);
   assert.equal("smallCulled" in coarse, false);
 });
+
+test("default 50m atlas: the demo floor preserves coarse country visibility", async (t) => {
+  const { MIN_AUTO_LEVEL } = await import("../examples/globe/lod.mjs");
+  const original = decodeCountries(
+    JSON.parse(
+      await readFile(
+        new URL(
+          "../node_modules/visionscarto-world-atlas/world/50m.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ),
+    topojson,
+  );
+  const engine = createGlobeGeometry(original, d3);
+  const visible = (level) =>
+    new Set(
+      engine.query(level).geojson.features.flatMap((f, i) =>
+        polysOf(f.geometry).length ? [i] : [],
+      ),
+    );
+  const at4 = visible(4),
+    at41 = visible(4.1),
+    atFloor = visible(MIN_AUTO_LEVEL);
+  for (const i of at4) assert.ok(at41.has(i));
+  for (const i of at41) assert.ok(atFloor.has(i));
+  const missing = original.features.filter((_, i) => !atFloor.has(i));
+  const names = missing.map((f) => f.properties?.name ?? f.id);
+  t.diagnostic("Countries absent at the demo floor: " + names.join(", "));
+  // Microstates can remain below the tree's representability limit, but a
+  // substantial country (roughly 100,000 square km) must not disappear.
+  assert.deepEqual(
+    missing
+      .filter((f) => d3.geoArea(f) >= 0.0025)
+      .map((f) => f.properties?.name ?? f.id),
+    [],
+  );
+});
