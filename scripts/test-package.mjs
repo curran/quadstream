@@ -67,7 +67,10 @@ try {
     ),
   );
   assert.equal(installed.license, "MIT");
-  assert.equal(installed.version, "0.1.0");
+  const sourcePackage = JSON.parse(
+    readFileSync(join(root, "package.json"), "utf8"),
+  );
+  assert.equal(installed.version, sourcePackage.version);
   assert.equal(Object.keys(installed.dependencies ?? {}).length, 0);
 
   writeFileSync(
