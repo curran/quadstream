@@ -14,12 +14,13 @@ export function regionalConfig({ counties = true } = {}) {
   const states = {
     id: "us-states", url: "../../node_modules/us-atlas/states-10m.json",
     object: "states", caps: usCaps, enter: 3, exit: 2.7,
-    offset: 3, color: "#aca4ee", width: 0.65,
+    includeExternal: true, offset: 3, color: "#aca4ee", width: 0.65,
   };
   return counties
     ? [states, { ...states, id: "us-counties",
         url: "../../node_modules/us-atlas/counties-10m.json",
-        object: "counties", sameState: true, enter: 6, exit: 5.4,
+        object: "counties", sameState: true, includeExternal: false,
+        enter: 6, exit: 5.4,
         color: "#766fae", width: 0.35 }]
     : [states];
 }

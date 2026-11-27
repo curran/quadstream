@@ -35,19 +35,19 @@
     "test:package": "node scripts/test-package.mjs"
   },
   "devDependencies": {
-    "typescript": "^6.0.3",
-    "prettier": "3.10.1",
-    "eslint": "10.15.0",
     "@eslint/js": "10.0.1",
-    "typescript-eslint": "8.74.0",
-    "globals": "17.14.0",
-    "maplibre-gl": "6.19.0",
     "@playwright/test": "1.65.1",
     "d3": "7.9.2",
+    "eslint": "10.15.0",
+    "globals": "17.14.0",
+    "maplibre-gl": "6.20.0",
+    "prettier": "3.10.1",
     "topojson-client": "3.1.0",
-    "world-atlas": "2.0.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "8.74.0",
+    "us-atlas": "3.0.1",
     "visionscarto-world-atlas": "1.0.0",
-    "us-atlas": "3.0.1"
+    "world-atlas": "2.0.2"
   },
   "bin": {
     "quadstream": "./bin/quadstream.mjs"
