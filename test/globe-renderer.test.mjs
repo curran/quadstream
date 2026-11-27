@@ -78,15 +78,16 @@ function makePolygonFeatures(count) {
 
 describe("createGlobeRenderer", () => {
   it("batches all land features into O(1) path/fill/stroke calls", () => {
-    const ctx = createMockCtx();
-    const render = createGlobeRenderer(d3, ctx);
-    const geojson = makePolygonFeatures(50);
+    for (const count of [1, 10, 50]) {
+      const ctx = createMockCtx();
+      const render = createGlobeRenderer(d3, ctx);
+      render(makeState(), makePolygonFeatures(count));
 
-    render(makeState(), geojson);
-
-    assert.equal(ctx.counts.beginPath, 3);
-    assert.equal(ctx.counts.fill, 2);
-    assert.equal(ctx.counts.stroke, 3);
+      // Ocean, graticule, land fill, and deduplicated land boundary mesh.
+      assert.equal(ctx.counts.beginPath, 4);
+      assert.equal(ctx.counts.fill, 2);
+      assert.equal(ctx.counts.stroke, 3);
+    }
   });
 
   it("draws sphere and graticule when geojson is empty or undefined", () => {
