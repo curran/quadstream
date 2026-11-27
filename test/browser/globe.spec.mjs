@@ -716,19 +716,44 @@ test("arrow thrust moves camera, space brakes, blur releases keys, R resets", as
   await page.waitForTimeout(200);
   expect((await state(page)).rotation[1]).toBe(stopped);
   await page.keyboard.down("ArrowLeft");
-  await page.waitForTimeout(150);
+  await expect.poll(() => data(page, "thrusting")).toBe("true");
+  await expect
+    .poll(async () => (await state(page)).rotation[0])
+    .toBeGreaterThan(a.rotation[0]);
   await page.evaluate(() => window.dispatchEvent(new Event("blur")));
   await expect
     .poll(() => data(page, "thrusting"), { timeout: 15000 })
     .toBe("false");
   await page.keyboard.up("ArrowLeft");
   await page.keyboard.press("KeyR");
+  // Diagnostics are published by render(), not the key handler. The previous
+  // idle frame can still report moving=false before the reset has drawn.
+  // Require the reset pose and idle flags in the same rendered frame.
   await expect
-    .poll(() => data(page, "moving"), { timeout: 15000 })
-    .toBe("false");
-  const r = await state(page);
-  near(r.rotation[1], -20);
-  near(r.scale, r.initial);
+    .poll(
+      () =>
+        globe(page).evaluate((el) => {
+          const d = el.dataset;
+          const [lon, lat, roll] = JSON.parse(d.rotation);
+          return {
+            moving: d.moving,
+            thrusting: d.thrusting,
+            rotation: [
+              Math.abs((((lon + 180) % 360) + 360) % 360 - 180) < 0.001,
+              Math.abs(lat + 20) < 0.001,
+              Math.abs(roll) < 0.001,
+            ],
+            scale: Math.abs(Number(d.scale) - Number(d.initialScale)) < 0.001,
+          };
+        }),
+      { timeout: 15000 },
+    )
+    .toEqual({
+      moving: "false",
+      thrusting: "false",
+      rotation: [true, true, true],
+      scale: true,
+    });
 });
 test("holding D traverses LOD without a request storm", async ({ page }) => {
   await page.addInitScript(() =>
