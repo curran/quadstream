@@ -51,3 +51,53 @@ test("international workers are admitted, evicted and stale replies ignored", ()
   layers.reset();
   assert.ok(workers.every((w) => w.terminated));
 });
+
+test("international ADM1 and ADM2 layers reject obsolete LOD frames", () => {
+  const workers = [];
+  const configs = regionalConfig({
+    catalog: [record("CAN"), record("CAN", "ADM2")],
+  }).filter((config) => config.international);
+  const layers = createRegionalLayers({
+    configs,
+    createWorker: () => {
+      const worker = {
+        sent: [],
+        postMessage(message) { this.sent.push(message); },
+        terminate() {},
+      };
+      workers.push(worker);
+      return worker;
+    },
+  });
+  const view = {
+    initialScale: 100, scale: 800, width: 200, height: 200,
+    rotation: [0, 0, 0],
+  };
+  const update = (level) => layers.update(view, {
+    enabled: true, original: false, level,
+  });
+  const send = (worker, level) => worker.onmessage({
+    data: { type: "frame", level, geometry: { level } },
+  });
+  const rendered = () => layers.status().map((layer) => layer.rendered);
+  update(6);
+  assert.equal(workers.length, 2);
+  for (const worker of workers) {
+    worker.onmessage({ data: { type: "ready", original: {} } });
+    assert.equal(worker.sent.at(-1).level, 9);
+    send(worker, 9);
+  }
+  assert.deepEqual(rendered(), [9, 9]);
+  update(10);
+  update(7);
+  for (const worker of workers) {
+    assert.equal(worker.sent.at(-1).level, 13);
+    send(worker, 13);
+    assert.equal(worker.sent.at(-1).level, 10);
+  }
+  assert.deepEqual(rendered(), [9, 9]);
+  assert.deepEqual(update(7).map((overlay) => overlay.geometry.level), [9, 9]);
+  for (const worker of workers) send(worker, 10);
+  assert.deepEqual(rendered(), [10, 10]);
+  layers.reset();
+});

@@ -1,4 +1,5 @@
 import { isCapVisible, lonLatToVec, orthographicViewCone } from "./cull.mjs";
+import { improvesLod } from "./lod.mjs";
 
 const cap = (lon, lat, radius) => {
   const [cx, cy, cz] = lonLatToVec(lon, lat);
@@ -98,10 +99,12 @@ export function createRegionalLayers({ configs, createWorker, onChange = () => {
           layer.frame = data.original;
         } else if (data.type === "frame") {
           layer.busy = false;
-          layer.rendered = data.level;
-          layer.frame = data.geometry;
-          layer.phase = data.warning ? "fallback" : "ready";
-          layer.warning = data.warning;
+          if (improvesLod(data.level, layer.rendered, layer.target)) {
+            layer.rendered = data.level;
+            layer.frame = data.geometry;
+            layer.phase = data.warning ? "fallback" : "ready";
+            layer.warning = data.warning;
+          }
         }
         query(layer);
         onChange();
@@ -148,9 +151,9 @@ export function createRegionalLayers({ configs, createWorker, onChange = () => {
       }
       for (const layer of layers) {
         const { config } = layer;
-        if (!layer.active) continue;
         layer.originalMode = original;
         layer.target = Math.round(Math.max(0, Math.min(19, level + config.offset)) * 10) / 10;
+        if (!layer.active) continue;
         if (layer.phase === "idle") start(layer);
         query(layer);
         const geometry = original ? layer.original : layer.frame;

@@ -52,6 +52,66 @@ test("lazy load, cached frame, stale replies and reset", () => {
   w.onmessage({ data: { type: "ready", original } });
   assert.ok(layers.status().every((s) => s.phase === "idle"));
 });
+test("states and counties reject stale LOD regressions and converge after reversals", () => {
+  const workers = [];
+  const layers = createRegionalLayers({
+    configs: regionalConfig(),
+    createWorker: () => {
+      const worker = {
+        sent: [],
+        postMessage(m) { this.sent.push(m); },
+        terminate() {},
+      };
+      workers.push(worker);
+      return worker;
+    },
+  });
+  const options = (level) => ({ enabled: true, original: false, level });
+  const update = (level, zoom = 8) => layers.update(view(zoom), options(level));
+  const send = (w, level) => {
+    const geometry = { type: "MultiLineString", coordinates: [], level };
+    w.onmessage({ data: { type: "frame", level, geometry } });
+  };
+  update(5);
+  assert.equal(workers.length, 2);
+  for (const w of workers) {
+    w.onmessage({ data: { type: "ready", original: { coordinates: [] } } });
+    send(w, 8);
+  }
+  const levels = () => layers.status().map((s) => s.rendered);
+  assert.deepEqual(levels(), [8, 8]);
+  update(9);
+  update(6);
+  for (const w of workers) {
+    assert.equal(w.sent.at(-1).level, 12);
+    send(w, 12);
+    assert.equal(w.sent.at(-1).level, 9);
+  }
+  assert.deepEqual(levels(), [8, 8]);
+  for (const w of workers) send(w, 9);
+  assert.deepEqual(levels(), [9, 9]);
+  update(7);
+  update(9);
+  for (const w of workers) {
+    send(w, 10);
+    assert.equal(w.sent.at(-1).level, 12);
+  }
+  assert.deepEqual(levels(), [10, 10]);
+  for (const w of workers) send(w, 12);
+  update(5);
+  update(8);
+  for (const w of workers) send(w, 8);
+  assert.deepEqual(levels(), [12, 12]);
+  for (const w of workers) send(w, 11);
+  assert.deepEqual(levels(), [11, 11]);
+  update(9);
+  // A hidden layer must also track the current target.
+  assert.deepEqual(update(8, 1), []);
+  for (const w of workers) send(w, 12);
+  assert.deepEqual(levels(), [11, 11]);
+  assert.deepEqual(update(8).map((o) => o.geometry.level), [11, 11]);
+});
+
 test("bundled atlas objects and deduplicated regional meshes", async () => {
   for (const resolution of ["110m", "50m"]) {
     const atlas = JSON.parse(await readFile(new URL(
