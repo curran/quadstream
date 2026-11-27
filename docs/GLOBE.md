@@ -17,12 +17,13 @@ city labels, or analytics are needed. Local file inputs stay in the browser.
 
 Adapted from the MIT-licensed [Submarine cable globe](https://vizhub.com/viz/rPa9vFJ0kEvpjaJn-280C)
 (`index.js`, `map.js`, README, and package.json inspected 2026-11-25).
-Preserve pointer-driven rotation, scale-dependent sensitivity, wheel zoom,
-0.6–8x relative zoom limits, fresh pinch baselines, pointer capture, and native
-gesture suppression. The new controller has explicit lifecycle cleanup,
-third-pointer pause/rebase, cancellation, zero-distance pinch handling, and
-wheel/drag overlap handling. Two fingers zoom; one finger rotates. A two-finger
-centroid translation does not rotate the globe, matching the source example.
+One finger rotates; two fingers pan and zoom around their midpoint. Wheel zoom
+preserves the geographic point under the cursor. The orthographic solver
+keeps roll zero and picks the nearest orientation when roots are tied.
+For unreachable positions near poles or the limb, a bounded search
+minimizes screen-space error. A drag starting outside the globe has no
+anchor; zoom without an anchor remains centered. Pointer capture, cancellation,
+fresh pinch baselines, third-pointer pause/rebase, and zoom bounds remain.
 Plus/minus zoom on the canvas. Resize retains relative zoom and
 rotation. Canvas is device-pixel-ratio aware. Idle ocean glow is disabled
 while interacting. The renderer intentionally omits the cable overlay.
@@ -39,14 +40,14 @@ TopoJSON must contain the named countries object.
 
 ## Smooth navigation and keyboard flight
 
-Pointer, wheel and pinch input sets a goal; the rendered camera follows it
-with an analytical damped spring (`physics.mjs`, `springStep`), so motion is
+Pointer, wheel and pinch input directly updates the rendered camera to preserve
+the anchor. Animated reset uses an analytical damped spring (`physics.mjs`, `springStep`), so motion is
 frame-rate independent. Longitude is unbounded, zoom is springed in log space,
 and LOD follows the rendered scale. One rAF scheduler runs only while the camera
 is moving. While moving, land is resampled more coarsely without its outline,
 and a slow draw is followed by a skipped one; the settled frame is always full
 quality. The collapsed
-**Navigation** panel has sliders for response time, damping ratio, pan and zoom
+**Navigation** panel has sliders for response time, damping ratio, zoom
 sensitivity, and a smooth toggle. Settings persist in localStorage
 (`quadstream-globe-nav`). `?smooth=0|1` overrides smoothing, and
 `prefers-reduced-motion` disables it.
@@ -55,8 +56,7 @@ Keyboard flight uses force-based dynamics, `v' = a - γv`, integrated exactly
 by `stepThrust` (drag must be > 0): ←/→/↑/↓ thrust laterally (north-up, diagonals
 normalized, speed in screen pixels/s so it feels the same at any zoom), D/C
 fly in/out in log-zoom, Space brakes, R resets. Held keys are tracked in a set
-and cleared on blur or hidden page; inputs and sliders are ignored. Pointer input
-reclaims channels while keeping velocity. Sliders: pan speed, zoom speed
+and cleared on blur or hidden page; inputs and sliders are ignored. Direct pointer input brakes the camera and reclaims its channels. Sliders: pan speed, zoom speed
 (octaves/s) and drag; acceleration is derived as `γ·v∞`.
 
 ## Regional boundary layers
