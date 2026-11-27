@@ -5,7 +5,12 @@ import {
   isCapVisible,
   orthographicViewCone,
 } from "./cull.mjs";
-import { createViewClipper } from "./clip.mjs";
+import {
+  CLIP_MARGIN_RAD,
+  CLIP_MAX_RADIUS_RAD,
+  CLIP_RADIUS_SCALE,
+  createViewClipper,
+} from "./clip.mjs";
 
 const faceAxes = {
   "+X": [
@@ -52,6 +57,10 @@ function cellPoint(cell, u, v) {
 }
 function quadtreeGeometry(cells, level, state, capCache) {
   const cone = orthographicViewCone(state);
+  cone.viewRadius = Math.min(
+    CLIP_MAX_RADIUS_RAD,
+    cone.viewRadius * CLIP_RADIUS_SCALE + CLIP_MARGIN_RAD,
+  );
   const features = [];
   for (const cell of cells) {
     if (cell.level > level) continue;
@@ -147,6 +156,7 @@ export function createGlobeRenderer(
       rotation,
       scale,
       translation,
+      interacting,
       dpr = 1,
     } = state;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -208,8 +218,8 @@ export function createGlobeRenderer(
       ctx.lineWidth = width;
       drawShape(geometry, false, true);
     }
-    if (state.showQuadtree && quadtree.length) {
-      ctx.globalAlpha = 0.55;
+    if (state.showQuadtree && !interacting && quadtree.length) {
+      ctx.globalAlpha = 0.2;
       ctx.strokeStyle = "yellow";
       ctx.lineWidth = 0.5;
       ctx.beginPath();
