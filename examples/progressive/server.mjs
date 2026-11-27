@@ -19,6 +19,8 @@ const allowed = [
   "node_modules/d3/dist/",
   "node_modules/topojson-client/dist/",
   "node_modules/world-atlas/",
+  "node_modules/visionscarto-world-atlas/world/",
+  "node_modules/us-atlas/",
 ];
 createServer(async (req, res) => {
   try {

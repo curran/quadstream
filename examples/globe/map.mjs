@@ -93,7 +93,7 @@ export function createGlobeRenderer(
     if (fill) ctx.fill();
     if (stroke) ctx.stroke();
   }
-  return (state, geojson, source, quadtree = []) => {
+  return (state, geojson, source, quadtree = [], overlays = []) => {
     const {
       width,
       height,
@@ -152,6 +152,12 @@ export function createGlobeRenderer(
       path(target);
       ctx.fill();
       ctx.stroke();
+    }
+    for (const { geometry, color, width } of overlays) {
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      drawShape(geometry, false, true);
     }
     if (state.showQuadtree && quadtree.length) {
       ctx.globalAlpha = 0.55;

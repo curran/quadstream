@@ -11,6 +11,7 @@ import { createGlobeRenderer } from "./map.mjs";
 import { createMinimapRenderer } from "./minimap.mjs";
 import { GlobeWorkerClient } from "./client.mjs";
 import { fixture } from "./fixture.mjs";
+import { createRegionalLayers, regionalConfig } from "./regional.mjs";
 const $ = (id) => document.getElementById(id),
   MINIMAP_LEVEL = 4,
   canvas = $("globe"),
@@ -93,6 +94,16 @@ let original,
   selectedFile = null,
   abort,
   disposed = false;
+const regional = createRegionalLayers({
+  configs: regionalConfig({
+    counties: new URLSearchParams(location.search).get("counties") !== "0",
+  }),
+  createWorker: () =>
+    new Worker(new URL("./regional-worker.mjs", import.meta.url), {
+      type: "module",
+    }),
+  onChange: schedule,
+});
 let drawStats = null;
 let requests = 0,
   frameMs = 0,
@@ -155,6 +166,17 @@ function diagnostics() {
           ")"
         : "—"),
     "Atlas payload: " + atlasBytes + " bytes | geometry queries: " + requests,
+    "Regional layers: " +
+      regional
+        .status()
+        .map(
+          (s) =>
+            s.id +
+            ": " +
+            s.phase +
+            (s.warning || s.error ? " (" + (s.warning || s.error) + ")" : ""),
+        )
+        .join(" | "),
     ...(frame?.reasons ?? []),
   ].join("\n");
   // Inspectable state for accessibility diagnostics and deterministic browser tests.
@@ -178,6 +200,7 @@ function diagnostics() {
     clipRebuilt: String(drawStats?.rebuilt ?? ""),
     sourceVertices: String(frame?.sourceVertices ?? ""),
     mode: $("mode").value,
+    regionalLayers: JSON.stringify(regional.status()),
   });
 }
 // Single frame scheduler: at most one rAF is outstanding, each frame advances
@@ -252,6 +275,12 @@ function render() {
           ? frame?.geojson
           : null;
     const minimapGeojson = minimapFrame?.geojson ?? null;
+    const overlays = regional.update(state, {
+      enabled:
+        ready && Boolean(activeGeojson) && !selectedFile && sourceName !== "fixture",
+      original: $("mode").value === "original",
+      level: targetLevelForView(),
+    });
     const drawn = draw(
       {
         ...state,
@@ -266,6 +295,7 @@ function render() {
       activeGeojson,
       original,
       quadtree,
+      overlays,
     );
     drawStats = drawn.stats;
     drawMinimap?.(
@@ -279,12 +309,16 @@ function render() {
     diagnostics();
   }
 }
+function targetLevelForView() {
+  const targetLevel = Number($("level").value),
+    zoomRatio = state.initialScale > 0 ? state.scale / state.initialScale : 1,
+    settled = Math.max(0, Math.min(19, targetLevel + Math.log2(zoomRatio)));
+  return quantizeAutoLevel(settled);
+}
 function requestLevel() {
   if (!ready || !latest || $("mode").value === "original") return;
   const targetLevel = Number($("level").value),
-    zoomRatio = state.initialScale > 0 ? state.scale / state.initialScale : 1,
-    settled = Math.max(0, Math.min(19, targetLevel + Math.log2(zoomRatio))),
-    level = quantizeAutoLevel(settled);
+    level = targetLevelForView();
   $("level-value").value = targetLevel;
   $("level-value").textContent = targetLevel;
   if (latest.target !== level) {
@@ -402,6 +436,7 @@ async function init() {
   quadtree = [];
   requests = 0;
   atlasBytes = 0;
+  regional.reset();
   latest?.dispose();
   client?.dispose();
   abort?.abort();
@@ -419,7 +454,7 @@ async function init() {
       atlasBytes = 0;
     } else {
       const r = await fetch(
-        "../../node_modules/world-atlas/countries-" + sourceName + ".json",
+        "../../node_modules/visionscarto-world-atlas/world/" + sourceName + ".json",
         { signal: abort.signal },
       );
       if (!r.ok) throw new Error("Atlas HTTP " + r.status);
@@ -518,6 +553,7 @@ $("level").addEventListener("input", () => {
   $("level-value").value = $("level").value;
   $("level-value").textContent = $("level").value;
   requestLevel();
+  schedule();
 });
 function applyNav() {
   nav.smooth = $("smooth").checked;
@@ -574,6 +610,7 @@ window.addEventListener(
     disposed = true;
     epoch++;
     abort?.abort();
+    regional.reset();
     latest?.dispose();
     client?.dispose();
     detach();
