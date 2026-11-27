@@ -6,7 +6,6 @@ import { packGeometry } from "./wire.mjs";
 let engine;
 let queue = [];
 let running = false;
-let latestQueryId = 0;
 const channel = new MessageChannel();
 const waiters = [];
 channel.port1.onmessage = () => {
@@ -21,10 +20,6 @@ const yieldTurn = () =>
 async function respond(m, work) {
   try {
     const payload = await work();
-    if (!payload) {
-      self.postMessage({ id: m.id, superseded: true });
-      return;
-    }
     const transfer =
       payload.coords && payload.meta
         ? [payload.coords.buffer, payload.meta.buffer]
@@ -35,18 +30,14 @@ async function respond(m, work) {
     self.postMessage({ id: m.id, error: String(e.message ?? e) });
   }
 }
-// Latest-wins with cooperative mid-run cancellation: incoming messages update
-// latestQueryId immediately, and queryInterruptible yields via MessageChannel
-// between ~8ms slices so superseded queries abort mid-flight.
+// The main-thread scheduler coalesces LOD targets before sending them.
+// Process admitted queries serially to completion, including the minimap.
 async function drain() {
   if (running) return;
   running = true;
-  while (queue.length) {
-    await yieldTurn();
-    const batch = queue;
-    queue = [];
-    const last = batch.findLastIndex((m) => m.type === "query");
-    for (const [i, m] of batch.entries()) {
+  try {
+    while (queue.length) {
+      const m = queue.shift();
       if (m.type === "init")
         await respond(m, () => {
           const original = decodeCountries(m.source, self.topojson);
@@ -60,26 +51,20 @@ async function drain() {
             reasons: engine.reasons,
           };
         });
-      else if (i !== last || m.id !== latestQueryId)
-        self.postMessage({ id: m.id, superseded: true });
       else
         await respond(m, async () => {
           if (!engine) throw new Error("Geometry worker not initialized");
-          const frame = await engine.queryInterruptible(m.level, {
-            shouldAbort: () => m.id !== latestQueryId,
-            yieldTurn,
-          });
-          if (!frame || m.id !== latestQueryId) return null;
+          const frame = await engine.queryInterruptible(m.level, { yieldTurn });
           const { geojson, ...rest } = frame;
           const { coords, meta } = packGeometry(geojson);
           return { frame: { ...rest, seq: m.id }, coords, meta };
         });
     }
+  } finally {
+    running = false;
   }
-  running = false;
 }
 self.onmessage = ({ data }) => {
-  if (data.type === "query") latestQueryId = data.id;
   queue.push(data);
-  drain();
+  void drain();
 };

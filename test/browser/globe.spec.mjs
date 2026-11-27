@@ -638,6 +638,7 @@ test("smooth navigation converges on the goal, then stops animating", async ({
     .toBeGreaterThan(a.scale);
   await expect.poll(() => d("moving"), { timeout: 15000 }).toBe("false");
   near((await state(page)).scale, goal);
+  await ready(page);
   const frames = await page.evaluate(
     () =>
       new Promise((resolve) => {
@@ -688,6 +689,7 @@ test("holding D accelerates zoom in, release coasts, C flies back out, then fram
   await expect
     .poll(() => data(page, "moving"), { timeout: 15000 })
     .toBe("false");
+  await ready(page);
   const frames = await page.evaluate(
     () =>
       new Promise((resolve) => {
@@ -774,4 +776,69 @@ test("holding D traverses LOD without a request storm", async ({ page }) => {
   const s = await state(page);
   // Quantized to 0.1 level steps: requests are bounded by the level range.
   expect(s.requests - before).toBeLessThan(200);
+});
+
+// Introduce response latency independent of machine speed. The actual worker
+// and geometry are unchanged; a moving camera must still publish results.
+test("slow geometry keeps refining during sustained zoom and reversal", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "quadstream-globe-nav",
+      '{"smooth":true,"flyZoom":1}',
+    );
+    const NativeWorker = window.Worker;
+    window.Worker = class extends NativeWorker {
+      constructor(url, options) {
+        super(url, options);
+        if (!String(url).endsWith("/worker.mjs")) return;
+        const replayed = new WeakSet();
+        this.addEventListener("message", (event) => {
+          if (!event.data.frame || replayed.has(event)) return;
+          event.stopImmediatePropagation();
+          setTimeout(() => {
+            const reply = new MessageEvent("message", { data: event.data });
+            replayed.add(reply);
+            this.dispatchEvent(reply);
+          }, 250);
+        });
+      }
+    };
+  });
+  await page.goto(flightUrl);
+  await ready(page);
+  const initial = (await state(page)).level;
+  await page.keyboard.down("KeyD");
+  let first, second;
+  try {
+    await expect
+      .poll(async () => (await state(page)).level, { timeout: 10000 })
+      .toBeGreaterThan(initial);
+    first = (await state(page)).level;
+    await expect
+      .poll(async () => (await state(page)).level, { timeout: 10000 })
+      .toBeGreaterThan(first);
+    second = (await state(page)).level;
+    expect(await data(page, "thrusting")).toBe("true");
+  } finally {
+    await page.keyboard.up("KeyD");
+  }
+
+  await page.keyboard.down("KeyC");
+  try {
+    await expect
+      .poll(async () => (await state(page)).level, { timeout: 10000 })
+      .toBeLessThan(second);
+    expect(await data(page, "thrusting")).toBe("true");
+  } finally {
+    await page.keyboard.up("KeyC");
+  }
+  await expect
+    .poll(() => data(page, "moving"), { timeout: 15000 })
+    .toBe("false");
+  await ready(page);
+  expect(await data(page, "renderedLevel")).toBe(
+    await data(page, "targetLevel"),
+  );
 });

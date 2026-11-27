@@ -98,11 +98,16 @@ Cross-feature intersection checking and differently digitized boundaries are
 still limitations; D3 samples do not prove global spherical validity.
 
 Rotation changes only the D3 projection. Geometry requests depend on zoom
-or the manual LOD control, not rotation. Scale thresholds use absolute CSS
-pixels and hysteresis; thresholds are provisional, not a measured pixel-error
-guarantee. A bounded cache, latest-request suppression and worker replacement
-on source changes keep stale geometry out of the view. Last valid global
-geometry remains visible while a level is computed.
+or the manual LOD control, not rotation. LOD follows the rendered camera scale
+in quantized 0.1-level increments; thresholds are provisional, not a measured
+pixel-error guarantee. Global reconstruction is completion-throttled: one
+active query runs to completion and publishes its frame, while newer targets
+overwrite a single pending level. The newest target starts immediately after
+completion if it differs from the rendered level. There is no debounce or
+fixed delay, and ongoing zoom does not cancel active work. Bounded caches
+reuse completed levels, including on direction reversal. The last valid
+geometry remains visible during reconstruction. Source changes and page
+teardown still dispose the old scheduler and terminate its worker.
 
 Diagnostics distinguish requested/rendered levels, vertex counts, source
 fallback, D3-incompatible coarse groups, strict-validator warnings,
@@ -123,7 +128,7 @@ npm run test:globe:browser
 ```
 
 The Node suite exercises pointer state, resize, cancellation, timer overlap,
-LOD and stale responses; spherical fixtures and a real local 110m atlas
+LOD, completion-driven throttling and stale dataset responses; spherical fixtures and a real local 110m atlas
 exercise D3 winding, area, containment, projected clipping, shared boundaries,
 full reconstruction, and meaningful reduction. Browser scenarios cover mouse,
 wheel, keyboard, repeated pinch, drag-to-pinch-to-drag, third pointers,

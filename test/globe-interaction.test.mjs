@@ -266,63 +266,134 @@ const deferred = () => {
   });
   return { resolve, reject, promise };
 };
-test("latest geometry suppresses stale response and reuses cached levels", async () => {
+function geometryHarness() {
   const requests = [],
     frames = [],
-    pending = new Map();
-  const c = createLatestGeometry({
-    request: (l) => {
-      requests.push(l);
-      const p = deferred();
-      pending.set(l, p);
-      return p.promise;
-    },
-    onFrame: (f) => frames.push(f),
-  });
-  const a = c.select(4),
-    b = c.select(5);
-  pending.get(5).resolve(5);
-  await b;
-  pending.get(4).resolve(4);
-  await a;
-  assert.deepEqual(frames, [5]);
-  const x = c.select(4);
-  pending.get(4).resolve(4);
-  await x;
-  await c.select(5);
-  assert.deepEqual(frames, [5, 4, 5]);
-  assert.deepEqual(requests, [4, 5, 4]);
-});
-test("geometry errors can retry, stale failures and disposed responses are ignored", async () => {
-  const errors = [],
-    frames = [],
+    errors = [],
     pending = [];
   const c = createLatestGeometry({
-    request: () => {
+    request: (level) => {
+      requests.push(level);
       const p = deferred();
       pending.push(p);
       return p.promise;
     },
-    onFrame: (f) => frames.push(f),
+    onFrame: (frame) => frames.push(frame),
     onError: (e) => errors.push(e.message),
   });
-  const a = c.select(4),
-    b = c.select(5);
-  pending[0].reject(new Error("stale"));
-  await a;
+  return { c, requests, frames, errors, pending };
+}
+
+test("geometry publishes every started query and coalesces pending levels", async () => {
+  const { c, requests, frames, pending } = geometryHarness();
+  const run = c.select(4);
+  for (let i = 1; i <= 30; i++) await c.select(4 + i / 10);
+  assert.deepEqual(requests, [4]);
+  assert.equal(c.target, 7);
+  pending[0].resolve(4);
+  await Promise.resolve();
+  assert.deepEqual(frames, [4]);
+  assert.deepEqual(requests, [4, 7]);
+  await c.select(8);
+  await c.select(9);
+  pending[1].resolve(7);
+  await Promise.resolve();
+  assert.deepEqual(frames, [4, 7]);
+  assert.deepEqual(requests, [4, 7, 9]);
+  pending[2].resolve(9);
+  await run;
+  assert.deepEqual(frames, [4, 7, 9]);
+});
+
+test("direction reversal reuses completed cache entries after active work", async () => {
+  const { c, requests, frames, pending } = geometryHarness();
+  const first = c.select(4);
+  pending[0].resolve(4);
+  await first;
+  const run = c.select(5);
+  await c.select(6);
+  await c.select(4);
+  assert.deepEqual(requests, [4, 5]);
+  pending[1].resolve(5);
+  await run;
+  assert.deepEqual(frames, [4, 5, 4]);
+  await c.select(5);
+  assert.deepEqual(frames, [4, 5, 4, 5]);
+  assert.deepEqual(requests, [4, 5]);
+});
+
+test("reselecting the active or rendered level does not start duplicate queries", async () => {
+  const { c, requests, frames, pending } = geometryHarness();
+  const run = c.select(4);
+  await c.select(5);
+  await c.select(4);
+  await c.select(4);
+  pending[0].resolve(4);
+  await run;
+  await c.select(4);
+  assert.deepEqual(requests, [4]);
+  assert.deepEqual(frames, [4]);
+});
+
+test("geometry errors can retry, obsolete failures and disposed responses are ignored", async () => {
+  const { c, requests, frames, errors, pending } = geometryHarness();
+  const run = c.select(4);
+  await c.select(5);
+  pending[0].reject(new Error("obsolete"));
+  await Promise.resolve();
+  assert.deepEqual(requests, [4, 5]);
   pending[1].reject(new Error("current"));
-  await b;
+  await run;
   assert.deepEqual(errors, ["current"]);
+  assert.equal(c.target, null);
   const next = c.select(5);
   pending[2].resolve(5);
   await next;
   assert.deepEqual(frames, [5]);
   const last = c.select(6);
+  await c.select(7);
   c.dispose();
   pending[3].resolve(6);
   await last;
+  await c.select(8);
   assert.deepEqual(frames, [5]);
+  assert.deepEqual(requests, [4, 5, 5, 6]);
 });
+
+test("invalidation clears the cache and suppresses old-generation results", async () => {
+  const { c, requests, frames, pending } = geometryHarness();
+  const first = c.select(4);
+  pending[0].resolve(4);
+  await first;
+  const run = c.select(5);
+  await c.select(6);
+  c.invalidate();
+  await c.select(4);
+  assert.deepEqual(requests, [4, 5]);
+  pending[1].resolve(5);
+  await Promise.resolve();
+  assert.deepEqual(requests, [4, 5, 4]);
+  assert.deepEqual(frames, [4]);
+  pending[2].resolve(40);
+  await run;
+  assert.deepEqual(frames, [4, 40]);
+});
+
+test("geometry cache stays bounded to four completed levels", async () => {
+  const requests = [],
+    frames = [];
+  const c = createLatestGeometry({
+    request: async (level) => {
+      requests.push(level);
+      return { level, seq: requests.length };
+    },
+    onFrame: (frame) => frames.push(frame.level),
+  });
+  for (const level of [4, 5, 6, 7, 8, 5, 4]) await c.select(level);
+  assert.deepEqual(requests, [4, 5, 6, 7, 8, 4]);
+  assert.deepEqual(frames, [4, 5, 6, 7, 8, 5, 4]);
+});
+
 test("worker bridge matches IDs, rejects failures and terminates pending requests", async () => {
   class Worker extends EventTarget {
     sent = [];
