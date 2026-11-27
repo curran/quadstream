@@ -4,16 +4,9 @@ import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
-import {
-  clipWindow,
-  clipRing,
-  ringInfo,
-  clipToWindow,
-  createViewClipper,
-  circleRing,
-  CLIP_MARGIN_RAD,
-  CLIP_MAX_RADIUS_RAD,
-} from "../examples/globe/clip.mjs";
+import { clipWindow, clipToWindow } from "../dist/index.js";
+import { clipRing, ringInfo, circleRing } from "../dist/spherical-clip.js";
+import { createViewClipper, CLIP_MARGIN_RAD, CLIP_MAX_RADIUS_RAD } from "../examples/globe/clip.mjs";
 import { lonLatToVec, orthographicViewCone } from "../examples/globe/cull.mjs";
 import { decodeCountries } from "../examples/globe/geometry.mjs";
 import { createGlobeRenderer } from "../examples/globe/map.mjs";
