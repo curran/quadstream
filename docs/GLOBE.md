@@ -99,8 +99,11 @@ still limitations; D3 samples do not prove global spherical validity.
 
 Rotation changes only the D3 projection. Geometry requests depend on zoom
 or the manual LOD control, not rotation. LOD follows the rendered camera scale
-in quantized 0.1-level increments; thresholds are provisional, not a measured
-pixel-error guarantee. Global reconstruction is completion-throttled: one
+in quantized 0.1-level increments. The slider sets the base LOD at 1x zoom;
+the globe and minimap share a minimum rendered LOD of 4.2, regardless of zoom
+or slider setting. The clamp leaves the existing zoom-to-LOD curve above the
+floor unchanged. This demo-specific floor reduces premature country loss but
+is not a general feature-preservation or measured pixel-error guarantee. Global reconstruction is completion-throttled: one
 active query runs to completion and publishes its frame, while newer targets
 overwrite a single pending level. The newest target starts immediately after
 completion if it differs from the rendered level. There is no debounce or
