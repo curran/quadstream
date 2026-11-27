@@ -80,7 +80,7 @@ import assert from 'node:assert/strict';
 `.replace("import assert from 'node:assert/strict';", "") +
       `
 import { buildQuadstream, buildSphericalQuadstream, exportPartitions,
-  QuadstreamSession, QuadstreamLoader, fetchFromBundle } from '@vizhub/quadstream';
+  QuadstreamSession, QuadstreamLoader, fetchFromBundle, clipWindow, clipToWindow, filterSphericalFeatures } from '@vizhub/quadstream';
 import type { FeatureCollection, QueryResult } from '@vizhub/quadstream';
 const source: FeatureCollection = {type:'FeatureCollection', features:[
   {type:'Feature', id:'line', properties:{}, geometry:{type:'LineString',
@@ -94,6 +94,11 @@ const result = await new QuadstreamLoader(session, fetchFromBundle(bundle)).load
 if (!result.complete || result.geojson.features.length !== 1) throw new Error('partition query failed');
 const spherical: QueryResult = buildSphericalQuadstream(source, {maxLevel:8}).query({level:7});
 if (spherical.geojson.features.length !== 1) throw new Error('spherical query failed');
+const polygon: FeatureCollection = {type:'FeatureCollection',features:[{type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[[[-2,-2],[-2,2],[2,2],[2,-2],[-2,-2]]]}}]};
+const window = clipWindow(1,0,0,0.2);
+if (filterSphericalFeatures(polygon, window).features.length !== 1 ||
+    clipToWindow(polygon, window).geojson.features.length !== 1)
+  throw new Error('spherical clip or cull failed');
 `,
   );
   writeFileSync(

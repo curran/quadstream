@@ -141,6 +141,43 @@ planar viewport bounds, v1 partition serialization or network streaming.
 They may reject inputs that cannot be validated in the reference hemisphere
 chart. See [spherical semantics](https://github.com/vizhub-studio/quadstream/blob/master/docs/SPHERICAL.md).
 
+
+### Spherical visibility and clipping
+
+The geometry library also provides renderer-independent visibility helpers:
+
+```ts
+import {
+  lonLatVector, computeFeatureCaps, filterSphericalFeatures,
+  clipWindow, clipToWindow,
+} from "@vizhub/quadstream";
+
+const [x, y, z] = lonLatVector([10, 45]);
+const window = clipWindow(x, y, z, Math.PI / 12);
+const caps = computeFeatureCaps(countries);
+const visible = filterSphericalFeatures(countries, window, caps);
+const { geojson, stats } = clipToWindow(visible, window);
+```
+
+Centers are unit vectors and angular radii are in radians. Clipping
+windows support radii from zero up to (but excluding) a hemisphere;
+nondegenerate polygon output requires a positive radius. The input uses
+D3 spherical winding and minor great-circle arcs. Clipping accepts only
+Polygon and MultiPolygon feature collections; culling conservatively
+keeps line geometry. Supplied caps must correspond to the features in
+order and conservatively bound their current geometry. Caps are based on
+vertices with a fixed margin; they are not certified bounds for arbitrary
+large-interior or malformed spherical polygons. Boundary walks approximate
+small circles by great-circle segments, and the existing polygon
+reconstruction is not a general-purpose topology-preserving intersection
+operation. The functions do not mutate inputs, but can reuse input
+features and rings by reference. Treat those as immutable. Statistics
+report output features, vertices, ring outcomes and classified positions.
+
+These are post-query rendering helpers, not viewport-aware spherical
+reconstruction or network streaming. Camera projection, padded-window
+caching and D3 rendering remain application concerns.
+
 ## Interactive demos
 
 From a checkout, install dependencies and build, then run either command:
