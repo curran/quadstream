@@ -4,13 +4,9 @@ import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
-import {
-  lonLatToVec,
-  computeFeatureCap,
-  orthographicViewCone,
-  isCapVisible,
-  filterVisibleFeatures,
-} from "../examples/globe/cull.mjs";
+import { computeFeatureCap, isCapVisible } from "../dist/index.js";
+import { lonLatToVec } from "../dist/spherical-cull.js";
+import { orthographicViewCone, filterVisibleFeatures } from "../examples/globe/cull.mjs";
 import { decodeCountries } from "../examples/globe/geometry.mjs";
 import { createGlobeRenderer } from "../examples/globe/map.mjs";
 
