@@ -161,3 +161,11 @@ until it is valid. Arcs are shared, so neighbours stay identical.
 invalid at full detail (malformed source) are isolated by the globe layer.
 Small (<30 vertex) dips in vertex count can occur at a fractional level where
 repair promotes arcs.
+
+## Tiny polygons and repaired source rings
+
+- **Min polygon size** (`?minpx=N`, default 1, `#min-px` input): the renderer
+  skips polygons whose projected area is below N px². Original mode is unaffected.
+- **Self-crossing source rings** (e.g. 110m Sudan) used to force a full-detail
+  source fallback. `examples/globe/repair.mjs` now cuts the loops so the feature
+  simplifies normally. See `plans/UNSIMPLIFIED_GEOMETRY.md`.

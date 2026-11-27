@@ -445,7 +445,7 @@ function capInside(cap, w) {
   );
 }
 
-function countVertices(geojson) {
+export function countVertices(geojson) {
   let n = 0;
   for (const f of geojson?.features ?? [])
     for (const poly of polygonsOf(f.geometry))

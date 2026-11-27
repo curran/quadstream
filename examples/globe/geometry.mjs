@@ -1,4 +1,5 @@
 import { buildSphericalQuadstream, canonicalLonLat } from "../../dist/index.js";
+import { repairGeometry } from "./repair.mjs";
 // d3 and topojson-client are injected: Node tests use ESM; browser uses local UMD.
 const polys = (g) =>
   g.type === "Polygon"
@@ -171,21 +172,22 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
   const start = clock(),
     features = original.features,
     sourceVertices = vertexCount(original),
-    all = features.map((_, i) => i);
+    all = features.map((_, i) => i),
+    // Working copies: sources the validator rejects are repaired (self-crossing
+    // loops cut out) so they can still be simplified.
+    work = [...features];
   function build(indices) {
     try {
       const input = {
         type: "FeatureCollection",
         features: indices.map((i) => ({
-          ...clean(features[i]),
+          ...clean(work[i]),
           id: String(i),
         })),
       };
       const engine = buildSphericalQuadstream(input, { maxLevel });
       const full = engine.query({ level: maxLevel - 1 }).geojson.features;
-      if (
-        !full.every((f, j) => d3Compatible(features[indices[j]], f, d3, true))
-      )
+      if (!full.every((f, j) => d3Compatible(work[indices[j]], f, d3, true)))
         throw new Error("D3 full-detail oracle disagrees");
       return { indices, engine };
     } catch (e) {
@@ -195,7 +197,19 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
   let groups = [build(all)];
   if (groups[0].error && features.length > 1) {
     try {
-      const singletonGroups = all.map((i) => build([i])),
+      const singletonGroups = all.map((i) => {
+          let g = build([i]);
+          if (g.error) {
+            const fixed = repairGeometry(features[i].geometry);
+            if (fixed.changed) {
+              work[i] = { ...features[i], geometry: fixed.geometry };
+              const retry = build([i]);
+              if (retry.error) work[i] = features[i];
+              else g = retry;
+            }
+          }
+          return g;
+        }),
         invalid = singletonGroups.filter((g) => g.error),
         valid = all.filter((i) => !singletonGroups[i].error);
       groups = [...(valid.length ? [build(valid)] : []), ...invalid];
@@ -237,7 +251,7 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
     const compatible =
       (selected.valid && level < maxLevel - 1) ||
       selected.geojson.features.every((f, j) =>
-        d3Compatible(features[g.indices[j]], f, d3, level === maxLevel - 1),
+        d3Compatible(work[g.indices[j]], f, d3, level === maxLevel - 1),
       );
     if (!selected.valid) stats.validatorInvalidGroups++;
     if (!compatible) stats.invalidGroups++;
@@ -332,6 +346,17 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
   return {
     query,
     queryInterruptible,
+    quadtree: groups.flatMap((g) =>
+      g.engine
+        ? g.engine.priorities.cells.map(({ face, level, i, j, key }) => ({
+            face,
+            level,
+            i,
+            j,
+            key,
+          }))
+        : [],
+    ),
     sourceVertices,
     buildMs,
     unavailable,

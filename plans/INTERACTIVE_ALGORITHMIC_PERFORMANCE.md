@@ -31,16 +31,16 @@ flowchart TD
  J --> Z
 ```
 
-| Wave | Standalone PRs | Priority and gates |
-| --- | --- | --- |
-| 0 | IP0 | P0 benchmark and oracle |
-| 1 | IP1, IP2, IP3, IP4, IP4b | P0 IP1/IP2; P1 IP3/IP4b; P2 IP4; parallel in distinct files |
-| 2 | IP5 | P1 after IP1/IP3 |
-| 3 | IP6 | P1 after IP2/IP5 |
-| 4 | IP7 | P1 design gate after IP6 |
-| 5 | IP8, IP9 | P2 parallel after validity gate |
-| 6 | IP10 | P1 research integration after IP4/IP4b/IP9 |
-| 7 | IP11 | P1 final validation |
+| Wave | Standalone PRs           | Priority and gates                                          |
+| ---- | ------------------------ | ----------------------------------------------------------- |
+| 0    | IP0                      | P0 benchmark and oracle                                     |
+| 1    | IP1, IP2, IP3, IP4, IP4b | P0 IP1/IP2; P1 IP3/IP4b; P2 IP4; parallel in distinct files |
+| 2    | IP5                      | P1 after IP1/IP3                                            |
+| 3    | IP6                      | P1 after IP2/IP5                                            |
+| 4    | IP7                      | P1 design gate after IP6                                    |
+| 5    | IP8, IP9                 | P2 parallel after validity gate                             |
+| 6    | IP10                     | P1 research integration after IP4/IP4b/IP9                  |
+| 7    | IP11                     | P1 final validation                                         |
 
 Edges are conservative merge gates, not prohibitions on earlier design research. IP1 owns reconstruct.ts; IP2 owns geometry.ts and index internals; remove duplicate reconstruction validation only after IP1 merges. IP4b uses isolated experimental code and does not modify production BLG. IP4 can proceed independently after IP0. Rebase on current main and rerun parity checks. If a research gate fails, record no-go, retain reference behavior, and revise downstream dependencies. IP10 may still accelerate the renderer on already validated effective detail states even if viewport-local retrieval is not feasible.
 

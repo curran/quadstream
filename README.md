@@ -46,19 +46,29 @@ examples use the package's public import path. From a checkout, examples in
 ## Quick start: planar geometry
 
 ```js
-import { buildQuadstream } from '@vizhub/quadstream';
+import { buildQuadstream } from "@vizhub/quadstream";
 
 const source = {
-  type: 'FeatureCollection',
-  features: [{
-    type: 'Feature',
-    id: 'square',
-    properties: { value: 42 },
-    geometry: {
-      type: 'Polygon',
-      coordinates: [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]]
-    }
-  }]
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      id: "square",
+      properties: { value: 42 },
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [0, 0],
+            [10, 0],
+            [10, 10],
+            [0, 10],
+            [0, 0],
+          ],
+        ],
+      },
+    },
+  ],
 };
 
 const dataset = buildQuadstream(source, { maxLevel: 12 });
@@ -79,14 +89,17 @@ great-circle globe geometry.
 
 ```js
 import {
-  exportPartitions, QuadstreamSession, QuadstreamLoader, fetchFromBundle
-} from '@vizhub/quadstream';
+  exportPartitions,
+  QuadstreamSession,
+  QuadstreamLoader,
+  fetchFromBundle,
+} from "@vizhub/quadstream";
 
 const bundle = exportPartitions(dataset, { fileDepth: 3 });
 const session = new QuadstreamSession(bundle.manifest);
 const loader = new QuadstreamLoader(session, fetchFromBundle(bundle), {
   concurrency: 4,
-  cacheBytes: 1024 * 1024
+  cacheBytes: 1024 * 1024,
 });
 
 const frame = await loader.loadLatest({ level: 4 });
@@ -110,9 +123,12 @@ degrees with D3 spherical winding (clockwise small polygon interiors).
 The following example assumes a TopoJSON atlas is already loaded:
 
 ```js
-import { buildSphericalQuadstream, importSphericalTopoJSON } from '@vizhub/quadstream';
+import {
+  buildSphericalQuadstream,
+  importSphericalTopoJSON,
+} from "@vizhub/quadstream";
 
-const countries = importSphericalTopoJSON(atlas, 'countries');
+const countries = importSphericalTopoJSON(atlas, "countries");
 const globe = buildSphericalQuadstream(countries, { maxLevel: 20 });
 const { geojson, valid, promotedArcs } = globe.query({ level: 8.5 });
 // Supply geojson to your D3 geoPath renderer.
@@ -129,9 +145,9 @@ chart. See [spherical semantics](https://github.com/vizhub-studio/quadstream/blo
 
 From a checkout, install dependencies and build, then run either command:
 
-| Demo | Command | What it demonstrates |
-| --- | --- | --- |
-| Progressive map | `npm run demo:map` | Canvas/MapLibre, detail levels, shared arcs, simulated partition latency |
+| Demo               | Command              | What it demonstrates                                                                                                |
+| ------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Progressive map    | `npm run demo:map`   | Canvas/MapLibre, detail levels, shared arcs, simulated partition latency                                            |
 | Orthographic globe | `npm run demo:globe` | D3 Canvas, real 110m/50m atlas inputs, pinch zoom, rotation, worker-based LOD and original/reconstructed comparison |
 
 Open the local URL printed by the server (normally http://127.0.0.1:4173/).
@@ -159,15 +175,15 @@ for input restrictions, bounds, exit codes and static staging.
 
 ## Public API guide
 
-| API | Purpose |
-| --- | --- |
-| `buildQuadstream`, `QuadstreamDataset` | Build planar multiresolution geometry and query by detail/bounds |
-| `buildSphericalQuadstream`, `SphericalQuadstreamDataset`, `importSphericalTopoJSON` | In-memory D3-style geographic reconstruction |
-| `importGeoJSON`, `exportGeoJSON`, `importTopoJSON`, `exportTopoJSON` | Planar geographic interchange |
-| `exportPartitions`, `validateManifest`, `MANIFEST_VERSION` | Versioned planar artifacts |
-| `QuadstreamSession`, `QuadstreamLoader`, `fetchFromBundle` | Partial reconstruction and injected async delivery |
-| `ProgressiveMap`, `attachMapLibre`, `mapLibreBounds` | Renderer-independent orchestration and MapLibre integration |
-| `buildTopology`, `buildSparseQuadtree`, `buildBlgTree`, `createSpatialIndex` | Lower-level algorithm building blocks |
+| API                                                                                 | Purpose                                                          |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `buildQuadstream`, `QuadstreamDataset`                                              | Build planar multiresolution geometry and query by detail/bounds |
+| `buildSphericalQuadstream`, `SphericalQuadstreamDataset`, `importSphericalTopoJSON` | In-memory D3-style geographic reconstruction                     |
+| `importGeoJSON`, `exportGeoJSON`, `importTopoJSON`, `exportTopoJSON`                | Planar geographic interchange                                    |
+| `exportPartitions`, `validateManifest`, `MANIFEST_VERSION`                          | Versioned planar artifacts                                       |
+| `QuadstreamSession`, `QuadstreamLoader`, `fetchFromBundle`                          | Partial reconstruction and injected async delivery               |
+| `ProgressiveMap`, `attachMapLibre`, `mapLibreBounds`                                | Renderer-independent orchestration and MapLibre integration      |
+| `buildTopology`, `buildSparseQuadtree`, `buildBlgTree`, `createSpatialIndex`        | Lower-level algorithm building blocks                            |
 
 See the [export list](https://github.com/vizhub-studio/quadstream/blob/master/src/index.ts)
 and included TypeScript declarations for complete signatures and utilities.
@@ -334,7 +350,6 @@ the entire query to a finer level. The globe demo separately isolates malformed
 source features, so one invalid atlas feature does not force its whole
 coordinate-connected component to full detail.
 
-
 ## How it works
 
 Quadstream deduplicates exact shared vertices and arcs, assigns deterministic
@@ -377,19 +392,19 @@ reference workload.
 
 ### Geometry predicates and preprocessing
 
-| Algorithm | Time | Space and explanation |
-| --- | --- | --- |
-| Coordinate normalization, bounding boxes, signed area (shoelace), ray-cast point-in-ring, great-circle path checks | O(n) for n positions | O(1) auxiliary for scans; O(n) if materializing normalized coordinates |
-| Orientation, segment intersection, bounds intersection/union, cell addressing, angular distance and individual spherical projections | O(1) | O(1); fixed-dimensional arithmetic |
-| Simple-ring validation | O(n²) worst case | O(1) auxiliary; tests nonadjacent segment pairs |
-| Polygon validation (shell and holes) | O(n²) worst case | O(1) auxiliary planar space; ring simplicity, edge-pair intersection and containment tests |
-| Exact-coordinate topology and reversible shared-arc interning | O(N + sum(d_e log d_e) + Q) | O(N); hash interning and adjacency scans, sorting the owner set of each edge e with d_e distinct owning paths |
-| Sparse planar quadtree and six-face spherical priorities | O(V log V + VL) | O(V); deterministic sorting, at most L probes per vertex, one stored occupied cell per vertex |
-| BLG min-Cartesian tree construction | O(m) per arc of length m; O(M) overall | O(m) per arc; each node is pushed and popped at most once on the monotone stack |
-| BLG invariant checking | O(m) | O(m) visited set and traversal |
-| Packed static bounding-volume hierarchy | O(F log F) | O(F) for fixed bucket size; sorting and packing progressively smaller groups |
-| Spherical hemisphere chart construction | O(n) | O(n) vector arrays; individual gnomonic projection is O(1) |
-| Spherical polygon signature and validation | O(n²) | O(n) projected working arrays; minor great-circle edges map to straight segments within the supported open hemisphere |
+| Algorithm                                                                                                                            | Time                                   | Space and explanation                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Coordinate normalization, bounding boxes, signed area (shoelace), ray-cast point-in-ring, great-circle path checks                   | O(n) for n positions                   | O(1) auxiliary for scans; O(n) if materializing normalized coordinates                                                |
+| Orientation, segment intersection, bounds intersection/union, cell addressing, angular distance and individual spherical projections | O(1)                                   | O(1); fixed-dimensional arithmetic                                                                                    |
+| Simple-ring validation                                                                                                               | O(n²) worst case                       | O(1) auxiliary; tests nonadjacent segment pairs                                                                       |
+| Polygon validation (shell and holes)                                                                                                 | O(n²) worst case                       | O(1) auxiliary planar space; ring simplicity, edge-pair intersection and containment tests                            |
+| Exact-coordinate topology and reversible shared-arc interning                                                                        | O(N + sum(d_e log d_e) + Q)            | O(N); hash interning and adjacency scans, sorting the owner set of each edge e with d_e distinct owning paths         |
+| Sparse planar quadtree and six-face spherical priorities                                                                             | O(V log V + VL)                        | O(V); deterministic sorting, at most L probes per vertex, one stored occupied cell per vertex                         |
+| BLG min-Cartesian tree construction                                                                                                  | O(m) per arc of length m; O(M) overall | O(m) per arc; each node is pushed and popped at most once on the monotone stack                                       |
+| BLG invariant checking                                                                                                               | O(m)                                   | O(m) visited set and traversal                                                                                        |
+| Packed static bounding-volume hierarchy                                                                                              | O(F log F)                             | O(F) for fixed bucket size; sorting and packing progressively smaller groups                                          |
+| Spherical hemisphere chart construction                                                                                              | O(n)                                   | O(n) vector arrays; individual gnomonic projection is O(1)                                                            |
+| Spherical polygon signature and validation                                                                                           | O(n²)                                  | O(n) projected working arrays; minor great-circle edges map to straight segments within the supported open hemisphere |
 
 The topology owner-set sorting term is bounded by O(N log N) in the
 fixed-width model. Without source validity checking, topology construction
@@ -422,14 +437,14 @@ the canonical source and signatures, but does not build a planar spatial index.
 
 ### Level-of-detail selection and query complexity
 
-| Algorithm | Time | Space and explanation |
-| --- | --- | --- |
-| BLG threshold traversal | O(t + 1), with t nodes passing the traversal threshold; O(m) worst case | O(h + k) for tree height h and k emitted positions; h can be m |
-| Fractional BLG selection | Same traversal bound | Stable vertex-ID hash is O(1); rejected fractional-level candidates are still visited |
-| Viewport feature lookup | O(w + J log(J + 1)) | O(w + J) conservative auxiliary bound; w counts visited nodes and tested entries; O(F + J log(J + 1)) worst case |
-| Arc/path reconstruction before polygon validation | O(T + K + J) | O(T + K + J) conservative bound for full-ID scans, reversed copies, temporary paths and output |
-| Planar feature reconstruction with validity checking | O(T + K + J + Q) | Same linear working storage; quadratic time does not imply quadratic storage |
-| Spherical shared-arc repair | O(L(T_all + F + Q_full)) worst case | O(T_all + F + A) working geometry, plus retained source and trees |
+| Algorithm                                            | Time                                                                    | Space and explanation                                                                                            |
+| ---------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| BLG threshold traversal                              | O(t + 1), with t nodes passing the traversal threshold; O(m) worst case | O(h + k) for tree height h and k emitted positions; h can be m                                                   |
+| Fractional BLG selection                             | Same traversal bound                                                    | Stable vertex-ID hash is O(1); rejected fractional-level candidates are still visited                            |
+| Viewport feature lookup                              | O(w + J log(J + 1))                                                     | O(w + J) conservative auxiliary bound; w counts visited nodes and tested entries; O(F + J log(J + 1)) worst case |
+| Arc/path reconstruction before polygon validation    | O(T + K + J)                                                            | O(T + K + J) conservative bound for full-ID scans, reversed copies, temporary paths and output                   |
+| Planar feature reconstruction with validity checking | O(T + K + J + Q)                                                        | Same linear working storage; quadratic time does not imply quadratic storage                                     |
+| Spherical shared-arc repair                          | O(L(T_all + F + Q_full)) worst case                                     | O(T_all + F + A) working geometry, plus retained source and trees                                                |
 
 BLG is a min-heap on detail priority and an inorder sequence on path
 position. An entire subtree can be skipped when its root exceeds the
@@ -476,20 +491,20 @@ polygon predicates.
 
 ### Adapters, serialization and progressive loading
 
-| Algorithm | Time | Space and explanation |
-| --- | --- | --- |
-| GeoJSON normalization / export | O(N) plus planar topology validation | O(N); export validates nonempty results again |
-| TopoJSON delta decode, signed arc reversal and stitching | O(D + T_all) | O(D + T_all); D counts positions in all encoded arcs, including unselected named objects |
-| Planar TopoJSON import/export | Decode or encode linear work plus topology construction | O(N + M + R + D) as applicable; export rebuilds topology after GeoJSON validation |
-| Spherical TopoJSON import | Decode plus spherical signatures and topology validation | Linear geometry storage; includes quadratic polygon checks |
-| Partition assignment and export | O(V + P log P + sum_p(v_p log v_p)) | O(V + P) new records, metadata and binary bytes, sharing existing topology; v_p records in partition p |
-| QSTR encoding/decoding and FNV-1a checksum | O(B) | O(B) output for encoding/decoding, O(1) auxiliary checksum space |
-| Manifest schema and reference validation | O(V + M + R + F + P) | O(V + M + R + F + P) conservative working space for IDs, arc copies and path accounting |
-| Required/missing partition planning and diagnostic bounds filter | O(P) | O(P) worst-case key output; loaded membership is expected O(1) |
-| Session construction | O(V + M + P + F log F) | O(V + M + F + P), including global manifest/tree/index data |
-| Session partition ingestion | O(B) | O(B) temporary records and sets, plus retained parsed vertices; repeat loads still checksum the bytes |
-| Loader ensure-level | O(P + B + e) local work | O(P + C b_max + H + V_loaded) excluding manifest/tree data; e cache evictions, C concurrency, b_max max partition bytes, H raw-byte cache budget |
-| Sorted loaded-key enumeration | O(P_loaded log(P_loaded + 1)) | O(P_loaded) output |
+| Algorithm                                                        | Time                                                     | Space and explanation                                                                                                                            |
+| ---------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GeoJSON normalization / export                                   | O(N) plus planar topology validation                     | O(N); export validates nonempty results again                                                                                                    |
+| TopoJSON delta decode, signed arc reversal and stitching         | O(D + T_all)                                             | O(D + T_all); D counts positions in all encoded arcs, including unselected named objects                                                         |
+| Planar TopoJSON import/export                                    | Decode or encode linear work plus topology construction  | O(N + M + R + D) as applicable; export rebuilds topology after GeoJSON validation                                                                |
+| Spherical TopoJSON import                                        | Decode plus spherical signatures and topology validation | Linear geometry storage; includes quadratic polygon checks                                                                                       |
+| Partition assignment and export                                  | O(V + P log P + sum_p(v_p log v_p))                      | O(V + P) new records, metadata and binary bytes, sharing existing topology; v_p records in partition p                                           |
+| QSTR encoding/decoding and FNV-1a checksum                       | O(B)                                                     | O(B) output for encoding/decoding, O(1) auxiliary checksum space                                                                                 |
+| Manifest schema and reference validation                         | O(V + M + R + F + P)                                     | O(V + M + R + F + P) conservative working space for IDs, arc copies and path accounting                                                          |
+| Required/missing partition planning and diagnostic bounds filter | O(P)                                                     | O(P) worst-case key output; loaded membership is expected O(1)                                                                                   |
+| Session construction                                             | O(V + M + P + F log F)                                   | O(V + M + F + P), including global manifest/tree/index data                                                                                      |
+| Session partition ingestion                                      | O(B)                                                     | O(B) temporary records and sets, plus retained parsed vertices; repeat loads still checksum the bytes                                            |
+| Loader ensure-level                                              | O(P + B + e) local work                                  | O(P + C b_max + H + V_loaded) excluding manifest/tree data; e cache evictions, C concurrency, b_max max partition bytes, H raw-byte cache budget |
+| Sorted loaded-key enumeration                                    | O(P_loaded log(P_loaded + 1))                            | O(P_loaded) output                                                                                                                               |
 
 QSTR v1 stores 10 header bytes plus 22 bytes per vertex record, so total
 binary payload is exactly 10P + 22V bytes, separate from JSON metadata.
@@ -538,20 +553,20 @@ dependency-free core. Let n be the number of input positions in a frame,
 c the number of clipping pieces from an individual ring, z the number of
 generated boundary samples, and s the number of minimap samples per edge.
 
-| Algorithm | Time | Space and explanation |
-| --- | --- | --- |
-| Atlas cleanup and degenerate-ring filtering | O(n) | O(n) for cleaned paths |
-| Exact-coordinate-connected feature groups | O((n + F)F) conservative worst-case bound | O(n + F); union-find with path halving but no rank/size balancing |
-| D3 area/containment compatibility checks | O(n) coordinate visits for fixed probe count | Excludes D3 internals; compares source and candidate |
-| Feature/ring spherical cap and unit-vector preprocessing | O(n) | O(F) for feature caps; O(n) for cached per-ring vectors |
-| Cached feature-cap visibility filtering | O(F) | O(F) worst-case result; dot-product cone test is O(1) per cap |
-| Minor-arc/cone crossings and winding scan | O(n) per ring | O(n) flags and retained pieces; crossing of one minor arc is O(1) |
-| Ring clipping and boundary walk | O(n + c² + z) | O(n + c + z); each exit scans all entry azimuths |
-| Padded-window clipping cache hit | O(1) | Reuses existing output; drawing still costs work |
-| Geometry worker packing/unpacking | O(n + F) | O(n + F) typed buffers and reconstructed arrays |
-| Zoom hysteresis, quantization, gesture updates and latest-generation checks | O(1) per ordinary update | O(active pointers) gesture state; worker queue coalescing scans pending messages linearly |
-| Minimap viewport sampling | O(s) | O(s) projected boundary samples |
-| Planar Canvas path/segment diagnostics | O(n) expected | O(n) shared-segment map; excludes Canvas rasterization |
+| Algorithm                                                                   | Time                                         | Space and explanation                                                                     |
+| --------------------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Atlas cleanup and degenerate-ring filtering                                 | O(n)                                         | O(n) for cleaned paths                                                                    |
+| Exact-coordinate-connected feature groups                                   | O((n + F)F) conservative worst-case bound    | O(n + F); union-find with path halving but no rank/size balancing                         |
+| D3 area/containment compatibility checks                                    | O(n) coordinate visits for fixed probe count | Excludes D3 internals; compares source and candidate                                      |
+| Feature/ring spherical cap and unit-vector preprocessing                    | O(n)                                         | O(F) for feature caps; O(n) for cached per-ring vectors                                   |
+| Cached feature-cap visibility filtering                                     | O(F)                                         | O(F) worst-case result; dot-product cone test is O(1) per cap                             |
+| Minor-arc/cone crossings and winding scan                                   | O(n) per ring                                | O(n) flags and retained pieces; crossing of one minor arc is O(1)                         |
+| Ring clipping and boundary walk                                             | O(n + c² + z)                                | O(n + c + z); each exit scans all entry azimuths                                          |
+| Padded-window clipping cache hit                                            | O(1)                                         | Reuses existing output; drawing still costs work                                          |
+| Geometry worker packing/unpacking                                           | O(n + F)                                     | O(n + F) typed buffers and reconstructed arrays                                           |
+| Zoom hysteresis, quantization, gesture updates and latest-generation checks | O(1) per ordinary update                     | O(active pointers) gesture state; worker queue coalescing scans pending messages linearly |
+| Minimap viewport sampling                                                   | O(s)                                         | O(s) projected boundary samples                                                           |
+| Planar Canvas path/segment diagnostics                                      | O(n) expected                                | O(n) shared-segment map; excludes Canvas rasterization                                    |
 
 Ring clipping scans original edges for crossings, then pairs each exit with
 the next entry in the required winding direction by exhaustive search.
