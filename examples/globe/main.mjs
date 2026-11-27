@@ -183,7 +183,11 @@ function diagnostics() {
 // Single frame scheduler: at most one rAF is outstanding, each frame advances
 // the camera (if moving) and draws once; idle and clean means no frames.
 let moving = false,
-  lastTime = 0;
+  lastTime = 0,
+  drawSkipped = false;
+// While moving, a draw that overruns this budget is followed by a skipped
+// draw; physics still advances every frame and the settled frame always draws.
+const MOTION_DRAW_BUDGET_MS = 12;
 // Keyboard flight keeps continuous control under reduced motion but has no
 // acceleration ramp or coasting.
 function applyTuning() {
@@ -238,7 +242,8 @@ function schedule() {
   raf = requestAnimationFrame(() => {
     raf = 0;
     advanceCamera();
-    render();
+    drawSkipped = moving && frameMs > MOTION_DRAW_BUDGET_MS && !drawSkipped;
+    if (!drawSkipped) render();
     if (moving) schedule();
   });
 }

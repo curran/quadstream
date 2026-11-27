@@ -81,7 +81,9 @@ export function createGlobeRenderer(
 ) {
   const projection = d3.geoOrthographic(),
     path = d3.geoPath(projection, ctx),
-    graticule = d3.geoGraticule()();
+    graticule = d3.geoGraticule()(),
+    finePrecision = projection.precision(),
+    motionPrecision = 0.5;
   const sphere = { type: "Sphere" };
   const capCache = cull || clip ? new WeakMap() : null;
   const clipper = clip ? createViewClipper() : null;
@@ -148,10 +150,14 @@ export function createGlobeRenderer(
     } else if (cull)
       target = filterVisibleFeatures(geojson, state, capCache, source);
     if (target?.features?.length) {
+      // While moving, land is resampled more coarsely and drawn without its
+      // outline; the settled frame restores full precision and stroke.
+      projection.precision(interacting ? motionPrecision : finePrecision);
       ctx.beginPath();
       path(target);
       ctx.fill();
-      ctx.stroke();
+      if (!interacting) ctx.stroke();
+      projection.precision(finePrecision);
     }
     if (state.showQuadtree && quadtree.length) {
       ctx.globalAlpha = 0.55;

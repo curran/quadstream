@@ -23,7 +23,7 @@ gesture suppression. The new controller has explicit lifecycle cleanup,
 third-pointer pause/rebase, cancellation, zero-distance pinch handling, and
 wheel/drag overlap handling. Two fingers zoom; one finger rotates. A two-finger
 centroid translation does not rotate the globe, matching the source example.
-Keyboard arrows rotate; plus/minus zoom. Resize retains relative zoom and
+Plus/minus zoom on the canvas. Resize retains relative zoom and
 rotation. Canvas is device-pixel-ratio aware. Idle ocean glow is disabled
 while interacting. The renderer intentionally omits the cable overlay.
 
@@ -35,6 +35,28 @@ licenses/provenance before distributing a public standalone bundle. The core
 has no new runtime dependencies. The original-geometry mode uses the same
 source as the Quadstream mode. Local GeoJSON must use D3 spherical winding;
 TopoJSON must contain the named countries object.
+
+## Smooth navigation and keyboard flight
+
+Pointer, wheel and pinch input sets a goal; the rendered camera follows it
+with an analytical damped spring (`physics.mjs`, `springStep`), so motion is
+frame-rate independent. Longitude is unbounded, zoom is springed in log space,
+and LOD follows the rendered scale. One rAF scheduler runs only while the camera
+is moving. While moving, land is resampled more coarsely without its outline,
+and a slow draw is followed by a skipped one; the settled frame is always full
+quality. The collapsed
+**Navigation** panel has sliders for response time, damping ratio, pan and zoom
+sensitivity, and a smooth toggle. Settings persist in localStorage
+(`quadstream-globe-nav`). `?smooth=0|1` overrides smoothing, and
+`prefers-reduced-motion` disables it.
+
+Keyboard flight uses force-based dynamics, `v' = a - γv`, integrated exactly
+by `stepThrust` (drag must be > 0): ←/→/↑/↓ thrust laterally (north-up, diagonals
+normalized, speed in screen pixels/s so it feels the same at any zoom), D/C
+fly in/out in log-zoom, Space brakes, R resets. Held keys are tracked in a set
+and cleared on blur or hidden page; inputs and sliders are ignored. Pointer input
+reclaims channels while keeping velocity. Sliders: pan speed, zoom speed
+(octaves/s) and drag; acceleration is derived as `γ·v∞`.
 
 ## Geometry and limits
 
