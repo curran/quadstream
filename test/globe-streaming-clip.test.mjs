@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildBlgTree, selectBlgPositions } from "../dist/blg.js";
-import { clipRing, clipRingReference, clipWindow, ringInfo } from "../examples/globe/clip.mjs";
-import { lonLatToVec } from "../examples/globe/cull.mjs";
+import { clipRing, clipRingReference, clipWindow, ringInfo } from "../dist/spherical-clip.js";
+import { lonLatToVec } from "../dist/spherical-cull.js";
 import { createBlgClipPrototype } from "../examples/globe/blg-clip-prototype.mjs";
 
 const windowAt = (lon, lat, radius) =>
