@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { geoOrthographic } from "d3";
+import { createCamera } from "../examples/globe/physics.mjs";
 import {
   createGlobeInteraction,
   attachGlobeInteraction,
@@ -90,6 +91,109 @@ test("pinch midpoint anchors and consecutive pinches use fresh scale", () => {
   g.up(3);
   g.up(4);
 });
+// The solver writes intent synchronously while the rendered camera trails it.
+function springHarness() {
+  const base = {
+    width: 600,
+    height: 600,
+    initialScale: 280,
+  };
+  const camera = createCamera({ initialScale: base.initialScale });
+  camera.setGoal({ lat: -20 });
+  camera.snap();
+  const view = ([lon, lat, z]) => ({
+    ...base,
+    rotation: [lon, lat, 0],
+    scale: base.initialScale * Math.exp(z),
+  });
+  const rendered = () => view(camera.pos);
+  const goal = () => view(camera.goal);
+  const g = createGlobeInteraction({
+    getState: goal,
+    getRenderedState: rendered,
+    update({ rotation, scale }) {
+      camera.setGoal({
+        lon: rotation?.[0],
+        lat: rotation?.[1],
+        z: scale === undefined ? undefined : Math.log(scale / base.initialScale),
+      });
+    },
+  });
+  return { camera, g, rendered, goal };
+}
+
+test("spring drag targets stay anchored through reversal and release", () => {
+  const { camera, g, rendered, goal } = springHarness();
+  const anchor = projection(rendered()).invert([350, 340]);
+  g.down(1, 350, 340);
+  g.move(1, 390, 360);
+  anchored(goal(), anchor, 390, 360);
+  anchored(rendered(), anchor, 350, 340);
+  camera.advance(0.04);
+  const velocity = [...camera.vel];
+  assert.notEqual(velocity[0], 0);
+  g.move(1, 330, 320);
+  anchored(goal(), anchor, 330, 320);
+  assert.deepEqual(camera.vel, velocity);
+  g.up(1);
+  assert.deepEqual(camera.vel, velocity);
+  camera.advance(2);
+  anchored(rendered(), anchor, 330, 320);
+});
+
+test("wheel bursts accumulate on the goal while the camera lags", () => {
+  const { camera, g, rendered, goal } = springHarness();
+  const anchor = projection(rendered()).invert([360, 320]);
+  g.wheel(-100, 360, 320);
+  camera.advance(0.04);
+  const velocity = [...camera.vel];
+  g.wheel(-100, 360, 320);
+  close(goal().scale, 280 * Math.exp(0.3));
+  anchored(goal(), anchor, 360, 320);
+  assert.deepEqual(camera.vel, velocity);
+  g.wheel(100, 360, 320);
+  close(goal().scale, 280 * Math.exp(0.15));
+  anchored(goal(), anchor, 360, 320);
+  camera.advance(2);
+  anchored(rendered(), anchor, 360, 320);
+  g.dispose();
+});
+
+test("a new grab selects the visible point while the previous goal is pending", () => {
+  const { camera, g, rendered, goal } = springHarness();
+  camera.setGoal({ lon: 30, z: Math.log(2) });
+  camera.advance(0.04);
+  const anchor = projection(rendered()).invert([350, 340]);
+  g.down(1, 350, 340);
+  g.move(1, 370, 350);
+  anchored(goal(), anchor, 370, 350);
+  close(goal().scale, 560);
+  camera.advance(2);
+  anchored(rendered(), anchor, 370, 350);
+  g.up(1);
+});
+
+test("pinch transitions rebase from pending intent without losing zoom", () => {
+  const { camera, g, rendered, goal } = springHarness();
+  const anchor = projection(rendered()).invert([300, 300]);
+  g.down(1, 250, 300);
+  g.down(2, 350, 300);
+  g.move(2, 450, 300);
+  close(goal().scale, 560);
+  anchored(goal(), anchor, 350, 300);
+  camera.advance(0.04);
+  g.up(2);
+  const next = projection(goal()).invert([250, 300]);
+  const velocity = [...camera.vel];
+  g.move(1, 270, 320);
+  anchored(goal(), next, 270, 320);
+  close(goal().scale, 560);
+  assert.deepEqual(camera.vel, velocity);
+  g.up(1);
+  camera.advance(2);
+  anchored(rendered(), next, 270, 320);
+});
+
 test("third pointer pauses and the remaining pair rebases", () => {
   const { g, state } = harness();
   g.down(1, 200, 300);

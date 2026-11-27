@@ -337,13 +337,10 @@ function requestLevel() {
     void latest.select(level);
   }
 }
-function update(patch, { near = false, direct = false } = {}) {
+function update(patch, { near = false } = {}) {
   if ("interacting" in patch) state.interacting = patch.interacting;
   if (patch.rotation || patch.scale !== undefined) {
-    if (direct) {
-      camera.brake();
-      moving = false;
-    } else advanceCamera(); // advance to the event time before moving the goal
+    advanceCamera(); // advance to the event time before moving the goal
     const [lon, lat, roll] = patch.rotation ?? [];
     const z =
       patch.scale !== undefined
@@ -353,7 +350,7 @@ function update(patch, { near = false, direct = false } = {}) {
       state.rotation = [...state.rotation.slice(0, 2), roll];
     if (near && lon !== undefined) camera.setGoalNear(lon, lat, z);
     else camera.setGoal({ lon, lat, z });
-    if (nav.smooth && !direct) {
+    if (nav.smooth) {
       if (!moving) {
         moving = true;
         lastTime = performance.now();
@@ -364,14 +361,12 @@ function update(patch, { near = false, direct = false } = {}) {
   schedule();
 }
 const gesture = createGlobeInteraction({
-  getState: () => state,
-  update: (patch) => update(patch, { direct: true }),
-  onStart: () => {
-    camera.brake();
-    moving = false;
-    syncState();
-    schedule();
+  getState: goalView,
+  getRenderedState: () => {
+    advanceCamera();
+    return state;
   },
+  update,
   getSensitivity: () => nav,
   onActive: (v) => update({ interacting: v }),
 });
