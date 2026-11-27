@@ -33,8 +33,8 @@ export function canonicalLonLat(value: unknown): Position {
     lat === 0 ? 0 : lat,
   ];
 }
-export function lonLatVector(p: Position): UnitVector {
-  const [lon, lat] = canonicalLonLat(p);
+/** Vector of an already canonical (validated, seam-aliased) longitude/latitude. */
+function canonicalVector(lon: number, lat: number): UnitVector {
   if (Math.abs(lat) === 90) return [0, 0, Math.sign(lat)];
   const c = Math.cos(lat * rad),
     z = Math.sin(lat * rad);
@@ -53,18 +53,28 @@ export function lonLatVector(p: Position): UnitVector {
       return [c * Math.cos(lon * rad), c * Math.sin(lon * rad), z];
   }
 }
+export function lonLatVector(p: Position): UnitVector {
+  const [lon, lat] = canonicalLonLat(p);
+  return canonicalVector(lon, lat);
+}
 export function angularDistance(a: Position, b: Position): number {
   const u = lonLatVector(a),
     v = lonLatVector(b);
   return Math.atan2(norm(cross(u, v)), dot(u, v));
 }
-export function validGreatCirclePath(path: readonly Position[]): boolean {
-  if (path.length < 2) return false;
-  for (let i = 1; i < path.length; i++) {
-    const d = angularDistance(path[i - 1]!, path[i]!);
+function validVectorPath(vectors: readonly UnitVector[]): boolean {
+  if (vectors.length < 2) return false;
+  for (let i = 1; i < vectors.length; i++) {
+    const u = vectors[i - 1]!,
+      v = vectors[i]!,
+      d = Math.atan2(norm(cross(u, v)), dot(u, v));
     if (d <= eps || Math.PI - d <= eps) return false;
   }
   return true;
+}
+export function validGreatCirclePath(path: readonly Position[]): boolean {
+  if (path.length < 2) return false;
+  return validVectorPath(path.map(lonLatVector));
 }
 export type CubeFace = "+X" | "-X" | "+Y" | "-Y" | "+Z" | "-Z";
 export interface SphericalCell {
@@ -80,59 +90,87 @@ export interface SphericalPriorities {
   cells: SphericalCell[];
   levelByVertexId: number[];
 }
+const FACES: readonly CubeFace[] = ["+X", "-X", "+Y", "-Y", "+Z", "-Z"];
+/** Face index into FACES plus face coordinates; computed once per vertex. */
+interface FaceCoords {
+  face: number;
+  u: number;
+  v: number;
+}
+function faceCoords([x, y, z]: UnitVector): FaceCoords {
+  // Fixed axis order breaks exact and roundoff-sized seam ties.
+  const m = Math.max(Math.abs(x), Math.abs(y), Math.abs(z));
+  if (m - Math.abs(x) <= 1e-15)
+    return { face: x >= 0 ? 0 : 1, u: y / Math.abs(x), v: z / Math.abs(x) };
+  if (m - Math.abs(y) <= 1e-15)
+    return { face: y >= 0 ? 2 : 3, u: x / Math.abs(y), v: z / Math.abs(y) };
+  return { face: z >= 0 ? 4 : 5, u: x / Math.abs(z), v: y / Math.abs(z) };
+}
+function cellIndex(t: number, side: number): number {
+  return Math.max(0, Math.min(side - 1, Math.floor(((t + 1) * side) / 2)));
+}
+function assertLevel(level: number): void {
+  if (!Number.isInteger(level) || level < 0 || level > 25)
+    throw new Error("Spherical level must be 0..25");
+}
 export function sphericalCellAddress(
   p: Position,
   level: number,
 ): Omit<SphericalCell, "vertexId"> {
-  if (!Number.isInteger(level) || level < 0 || level > 25)
-    throw new Error("Spherical level must be 0..25");
-  const [x, y, z] = lonLatVector(p);
-  // Fixed axis order breaks exact and roundoff-sized seam ties.
-  const m = Math.max(Math.abs(x), Math.abs(y), Math.abs(z));
-  let face: CubeFace, u: number, v: number;
-  if (m - Math.abs(x) <= 1e-15) {
-    face = x >= 0 ? "+X" : "-X";
-    u = y / Math.abs(x);
-    v = z / Math.abs(x);
-  } else if (m - Math.abs(y) <= 1e-15) {
-    face = y >= 0 ? "+Y" : "-Y";
-    u = x / Math.abs(y);
-    v = z / Math.abs(y);
-  } else {
-    face = z >= 0 ? "+Z" : "-Z";
-    u = x / Math.abs(z);
-    v = y / Math.abs(z);
-  }
-  const side = 2 ** level,
-    cell = (t: number) =>
-      Math.max(0, Math.min(side - 1, Math.floor(((t + 1) * side) / 2)));
-  const i = cell(u),
-    j = cell(v);
-  return { face, level, i, j, key: face + ":" + level + ":" + i + ":" + j };
+  assertLevel(level);
+  const { face, u, v } = faceCoords(lonLatVector(p)),
+    side = 2 ** level,
+    i = cellIndex(u, side),
+    j = cellIndex(v, side),
+    name = FACES[face]!;
+  return {
+    face: name,
+    level,
+    i,
+    j,
+    key: name + ":" + level + ":" + i + ":" + j,
+  };
 }
+// Face and indices pack into one exact double: 6 * 2^50 < 2^53.
+const SIDE_MAX = 2 ** 25;
+const packCell = (face: number, i: number, j: number) =>
+  (face * SIDE_MAX + i) * SIDE_MAX + j;
 export function buildSphericalPriorities(
   vertices: readonly Vertex[],
   maxLevel = 20,
 ): SphericalPriorities {
   if (!Number.isInteger(maxLevel) || maxLevel < 1 || maxLevel > 26)
     throw new Error("maxLevel must be 1..26");
+  interface Prepared {
+    id: number;
+    critical: boolean;
+    x: number;
+    y: number;
+    face: FaceCoords;
+  }
   const seen = new Set<string>(),
-    ids = new Set<number>();
-  const sorted = vertices
+    ids = new Uint8Array(vertices.length);
+  const sorted: Prepared[] = vertices
     .map((v) => {
       const [x, y] = canonicalLonLat([v.x, v.y]);
-      const k = JSON.stringify([x, y]);
+      const k = x + "," + y;
       if (
         seen.has(k) ||
         !Number.isSafeInteger(v.id) ||
         v.id < 0 ||
         v.id >= vertices.length ||
-        ids.has(v.id)
+        ids[v.id]
       )
         throw new Error("Expected distinct canonical vertices and dense IDs");
       seen.add(k);
-      ids.add(v.id);
-      return { ...v, x, y };
+      ids[v.id] = 1;
+      return {
+        id: v.id,
+        critical: v.critical,
+        x,
+        y,
+        face: faceCoords(canonicalVector(x, y)),
+      };
     })
     .sort(
       (a, b) =>
@@ -141,16 +179,31 @@ export function buildSphericalPriorities(
         a.y - b.y ||
         a.id - b.id,
     );
-  const occupied = new Set<string>(),
+  const occupied: Set<number>[] = Array.from(
+      { length: maxLevel },
+      () => new Set<number>(),
+    ),
+    sides = Array.from({ length: maxLevel }, (_, level) => 2 ** level),
     cells: SphericalCell[] = [],
     levelByVertexId: number[] = [];
   for (const v of sorted) {
     let found = false;
     for (let level = 0; level < maxLevel; level++) {
-      const c = sphericalCellAddress([v.x, v.y], level);
-      if (occupied.has(c.key)) continue;
-      occupied.add(c.key);
-      cells.push({ ...c, vertexId: v.id });
+      const side = sides[level]!,
+        i = cellIndex(v.face.u, side),
+        j = cellIndex(v.face.v, side),
+        packed = packCell(v.face.face, i, j);
+      if (occupied[level]!.has(packed)) continue;
+      occupied[level]!.add(packed);
+      const face = FACES[v.face.face]!;
+      cells.push({
+        vertexId: v.id,
+        face,
+        level,
+        i,
+        j,
+        key: face + ":" + level + ":" + i + ":" + j,
+      });
       levelByVertexId[v.id] = level;
       found = true;
       break;
@@ -188,8 +241,10 @@ export function sphericalChart(ring: readonly Position[]): SphericalChart {
   return { center, east, north };
 }
 export function projectSpherical(p: Position, chart: SphericalChart): Position {
-  const v = lonLatVector(p),
-    d = dot(v, chart.center);
+  return projectVector(lonLatVector(p), chart);
+}
+function projectVector(v: UnitVector, chart: SphericalChart): Position {
+  const d = dot(v, chart.center);
   if (d <= eps)
     throw new Error("Position outside supported open-hemisphere chart");
   return [dot(v, chart.east) / d, dot(v, chart.north) / d];
@@ -198,14 +253,16 @@ function ringOnChart(
   ring: readonly Position[],
   chart: SphericalChart,
 ): Position[] {
-  const p = ring.map(canonicalLonLat);
+  const p = ring.map(canonicalLonLat),
+    vectors = p.map(([lon, lat]) => canonicalVector(lon, lat));
   if (
     p.length < 4 ||
-    JSON.stringify(p[0]) !== JSON.stringify(p.at(-1)) ||
-    !validGreatCirclePath(p)
+    p[0]![0] !== p[p.length - 1]![0] ||
+    p[0]![1] !== p[p.length - 1]![1] ||
+    !validVectorPath(vectors)
   )
     throw new Error("Invalid spherical ring");
-  const xy = p.map((v) => projectSpherical(v, chart));
+  const xy = vectors.map((v) => projectVector(v, chart));
   if (!simpleClosedRing(xy) || Math.abs(signedArea(xy)) <= eps * eps)
     throw new Error("Degenerate or self-intersecting spherical ring");
   // Reject overlapping adjacent great-circle edges (including numerical near-overlap).

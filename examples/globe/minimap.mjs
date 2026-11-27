@@ -1,3 +1,4 @@
+import { dropSmallPolygons } from "./small.mjs";
 import { filterVisibleFeatures, orthographicViewCone } from "./cull.mjs";
 
 export function projectedViewportRing(d3, state, samplesPerEdge = 20) {
@@ -52,11 +53,27 @@ export function createMinimapRenderer(d3, ctx) {
     graticule = d3.geoGraticule()(),
     sphere = { type: "Sphere" },
     capCache = new WeakMap();
+  let small = null;
 
   // `visible` optionally supplies the geometry the main canvas actually drew.
-  return (state, geojson, visible = null) => {
+  return (state, full, visible = null) => {
     const size = state.miniSize ?? 160,
-      dpr = state.dpr ?? 1;
+      dpr = state.dpr ?? 1,
+      minPx = state.minPx ?? 0;
+    // The reduced collection is memoized so cap caches keyed on it stay warm.
+    if (
+      !small ||
+      small.full !== full ||
+      small.size !== size ||
+      small.minPx !== minPx
+    )
+      small = {
+        full,
+        size,
+        minPx,
+        geojson: dropSmallPolygons(full, size * 0.44, minPx).geojson,
+      };
+    const geojson = small.geojson;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, size, size);
     projection

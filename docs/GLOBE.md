@@ -123,6 +123,27 @@ and compare canvas pixels in Chromium and WebKit. The boundary walk is sampled
 every 4 degrees, so shapes right at the window edge are approximate; the margin
 keeps that edge outside the viewport.
 
+## Performance notes
+
+Measured on the 50m atlas (`scripts/bench-globe-node.mjs 50m 3`, Node):
+
+| Stage                                               | Worker init | Cold query (median) |
+| --------------------------------------------------- | ----------- | ------------------- |
+| Original                                            | 26.1 s      | ~1.5-3.9 s          |
+| Indexed (sweep-and-prune) planar validation         | 5.4 s       | 0.12-0.25 s         |
+| Numeric spherical priority keys                     | 4.2 s       | 0.10-0.23 s         |
+| Lazy reconstruction (no eager id lists or key sets) | 4.1 s       | 0.05-0.12 s         |
+
+In a headed Chromium (`scripts/profile-globe-browser.mjs`), the 50m globe is
+ready in about 7 s (the original did not finish within 590 s) and ten wheel
+zooms plus pans keep a 16.7 ms median frame.
+
+Clipping reuses caps computed once from the full-detail source, builds ring
+vectors lazily for visible features only, and pairs exits to entries by sorted
+azimuth (`pairPieces`, identical to the O(c^2) reference). Cold clip time at
+50m dropped from 46-63 ms to 1-22 ms per view with identical output. Use
+`?atlas=110m|50m|fixture` to pick the initial atlas.
+
 ## Fractional LOD and repair
 
 The slider accepts tenth-level values and auto detail derives a continuous
@@ -140,3 +161,11 @@ until it is valid. Arcs are shared, so neighbours stay identical.
 invalid at full detail (malformed source) are isolated by the globe layer.
 Small (<30 vertex) dips in vertex count can occur at a fractional level where
 repair promotes arcs.
+
+## Tiny polygons and repaired source rings
+
+- **Min polygon size** (`?minpx=N`, default 1, `#min-px` input): the renderer
+  skips polygons whose projected area is below N px². Original mode is unaffected.
+- **Self-crossing source rings** (e.g. 110m Sudan) used to force a full-detail
+  source fallback. `examples/globe/repair.mjs` now cuts the loops so the feature
+  simplifies normally. See `plans/UNSIMPLIFIED_GEOMETRY.md`.

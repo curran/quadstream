@@ -18,10 +18,8 @@ export function levelForScale(
   if (clamped < priorBand && clamped >= priorBand - hysteresis) return prior;
   return clamped;
 }
-export function quantizeAutoLevel(level, interacting = false) {
-  return interacting
-    ? Number((Math.round(level * 5) / 5).toFixed(1))
-    : Number((Math.round(level * 10) / 10).toFixed(1));
+export function quantizeAutoLevel(level) {
+  return Number((Math.round(level * 10) / 10).toFixed(1));
 }
 export function createLatestGeometry({ request, onFrame, onError = () => {} }) {
   let generation = 0,

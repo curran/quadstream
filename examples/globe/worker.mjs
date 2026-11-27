@@ -53,6 +53,7 @@ async function drain() {
           engine = createGlobeGeometry(original, self.d3);
           return {
             original,
+            quadtree: engine.quadtree,
             sourceVertices: engine.sourceVertices,
             buildMs: engine.buildMs,
             unavailable: engine.unavailable,
