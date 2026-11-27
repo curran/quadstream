@@ -48,11 +48,11 @@ const EXTERIOR = -1;
 const HOLE = 1;
 
 export function clipWindow(cx: number, cy: number, cz: number, radius: number): SphericalClipWindow {
-  if (!Number.isFinite(radius) || radius <= 0 || radius >= Math.PI / 2 ||
+  if (!Number.isFinite(radius) || radius < 0 || radius >= Math.PI / 2 ||
       !Number.isFinite(cx) || !Number.isFinite(cy) || !Number.isFinite(cz) ||
       Math.abs(Math.hypot(cx, cy, cz) - 1) > 1e-9)
-    throw new Error("Expected a unit center and clipping radius between zero and pi/2");
-  const ex = Math.abs(cz) < 0.9 ? [0, 0, 1] : [1, 0, 0],
+    throw new Error("Expected a unit center and clipping radius in [0, pi/2)");
+  const ex: UnitVector = Math.abs(cz) < 0.9 ? [0, 0, 1] : [1, 0, 0],
     d = ex[0] * cx + ex[1] * cy + ex[2] * cz;
   let ux = ex[0] - d * cx,
     uy = ex[1] - d * cy,
