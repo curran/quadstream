@@ -53,8 +53,8 @@ export function createMinimapRenderer(d3, ctx) {
     sphere = { type: "Sphere" },
     capCache = new WeakMap();
 
-  // `visible` optionally supplies the geometry the main canvas actually drew.
-  return (state, full, visible = null) => {
+  // Undefined means a standalone minimap; explicit null means no land drawn.
+  return (state, full, visible) => {
     const size = state.miniSize ?? 160,
       dpr = state.dpr ?? 1,
       geojson = full;
@@ -92,18 +92,22 @@ export function createMinimapRenderer(d3, ctx) {
       ctx.fill();
       ctx.stroke();
 
-      // Highlighted polygons that pass bounding-cap culling.
-      const lit = visible ?? filterVisibleFeatures(geojson, state, capCache);
-      if (lit.features.length) {
-        ctx.fillStyle = "#3f3880";
-        ctx.strokeStyle = "#c4b5fd";
-        ctx.globalAlpha = 0.95;
-        ctx.lineWidth = 0.75;
-        ctx.beginPath();
-        path(lit);
-        ctx.fill();
-        ctx.stroke();
-      }
+    }
+    // Highlight the submitted land independently of the coarse context's
+    // readiness. Never turn an explicit empty main frame into candidate land.
+    const lit =
+      visible === undefined
+        ? filterVisibleFeatures(geojson, state, capCache)
+        : visible;
+    if (lit?.features?.length) {
+      ctx.fillStyle = "#3f3880";
+      ctx.strokeStyle = "#c4b5fd";
+      ctx.globalAlpha = 0.95;
+      ctx.lineWidth = 0.75;
+      ctx.beginPath();
+      path(lit);
+      ctx.fill();
+      ctx.stroke();
     }
 
     // Culling cone boundary (dashed sky-blue).

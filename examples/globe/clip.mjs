@@ -343,7 +343,7 @@ export function pairPieces(pieces, side = EXTERIOR) {
  *   region (hole) covers the whole window
  * - away: no crossing and the window is on the other side
  */
-export function clipRing(w, info, side = EXTERIOR) {
+export function clipRingReference(w, info, side = EXTERIOR) {
   const { xyz, n, ring } = info;
   if (n < 3) return { status: "away" };
   const inside = new Uint8Array(n);
@@ -382,6 +382,65 @@ export function clipRing(w, info, side = EXTERIOR) {
       cur = { pts: [toLonLat(...x), ring[j]], from: azimuth(w, ...x), to: 0 };
     } else cur.pts.push(ring[j]);
   }
+  return assemblePieces(w, info, side, pieces);
+}
+
+/**
+ * Stream the ring in the reference's cyclic order, starting at the first
+ * exterior vertex. Classify each position exactly once; the initial inside
+ * prefix is known when the traversal wraps. No per-ring visibility bitmap.
+ * Keep outside endpoints only long enough to test their actual joining edge.
+ */
+export function clipRing(w, info, side = EXTERIOR, work) {
+  const { xyz, n, ring } = info;
+  if (n < 3) return { status: "away" };
+  const inside = (i) =>
+    xyz[i * 3] * w.cx + xyz[i * 3 + 1] * w.cy + xyz[i * 3 + 2] * w.cz >=
+    w.cosR;
+  let start = 0;
+  while (start < n && inside(start)) start++;
+  if (work) {
+    work.classified += n;
+    work.inside += start;
+    if (start < n) work.outside++;
+  }
+  if (start === n) return { status: "inside", ring };
+  const vec = (i) => [xyz[i * 3], xyz[i * 3 + 1], xyz[i * 3 + 2]],
+    pieces = [];
+  let previousInside = false,
+    cur = null;
+  for (let k = 0; k < n; k++) {
+    const i = (start + k) % n,
+      j = (i + 1) % n,
+      currentInside = j <= start ? j < start : inside(j);
+    if (work && j > start) {
+      if (currentInside) work.inside++;
+      else work.outside++;
+    }
+    if (!previousInside && !currentInside) {
+      const pair = throughCrossings(w, vec(i), vec(j));
+      if (pair)
+        pieces.push({
+          pts: [toLonLat(...pair[0]), toLonLat(...pair[1])],
+          from: azimuth(w, ...pair[0]),
+          to: azimuth(w, ...pair[1]),
+        });
+    } else if (previousInside && !currentInside) {
+      const x = exitPoint(w, vec(i), vec(j)) ?? vec(i);
+      cur.pts.push(toLonLat(...x));
+      cur.to = azimuth(w, ...x);
+      pieces.push(cur);
+      cur = null;
+    } else if (!previousInside && currentInside) {
+      const x = entryPoint(w, vec(i), vec(j)) ?? vec(j);
+      cur = { pts: [toLonLat(...x), ring[j]], from: azimuth(w, ...x), to: 0 };
+    } else cur.pts.push(ring[j]);
+    previousInside = currentInside;
+  }
+  return assemblePieces(w, info, side, pieces);
+}
+
+function assemblePieces(w, info, side, pieces) {
   if (!pieces.length) {
     const total = windingAroundCenter(w, info);
     return {
@@ -459,6 +518,7 @@ export function clipFeatureCollection(geojson, w, getInfo) {
     features: 0,
     rings: { kept: 0, clipped: 0, wrapped: 0, dropped: 0 },
     vertices: 0,
+    stream: { classified: 0, inside: 0, outside: 0 },
   };
   const features = [];
   const feats = geojson?.features ?? [];
@@ -490,7 +550,7 @@ export function clipFeatureCollection(geojson, w, getInfo) {
         if (!isCapVisible(rinfo.cap, w)) res = { status: "away" };
         else if (capInside(rinfo.cap, w))
           res = { status: "inside", ring: poly[ri] };
-        else res = clipRing(w, rinfo, hole ? HOLE : EXTERIOR);
+        else res = clipRing(w, rinfo, hole ? HOLE : EXTERIOR, stats.stream);
         if (res.status === "inside") {
           outRings.push(res.ring);
           stats.rings.kept++;

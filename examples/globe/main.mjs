@@ -165,6 +165,11 @@ function diagnostics() {
           drawStats.rings.dropped +
           ")"
         : "—"),
+    "Ring stream (last clip build): " +
+      (drawStats?.stream
+        ? drawStats.stream.classified + " classified, " + drawStats.stream.inside +
+          " inside, " + drawStats.stream.outside + " outside"
+        : "—"),
     "Atlas payload: " + atlasBytes + " bytes | geometry queries: " + requests,
     "Regional layers: " +
       regional
@@ -304,6 +309,7 @@ function render() {
         miniSize: 160,
       },
       minimapGeojson,
+      drawn.visible,
     );
     frameMs = performance.now() - start;
     diagnostics();
