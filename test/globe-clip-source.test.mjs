@@ -1,14 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  buildFeatureInfo,
-  createViewClipper,
-} from "../examples/globe/clip.mjs";
-import {
-  computeFeatureCap,
-  featureCap,
-  filterVisibleFeatures,
-} from "../examples/globe/cull.mjs";
+import { buildFeatureInfo } from "../dist/spherical-clip.js";
+import { createViewClipper } from "../examples/globe/clip.mjs";
+import { computeFeatureCap } from "../dist/index.js";
+import { featureCap, filterVisibleFeatures } from "../examples/globe/cull.mjs";
 
 const square = (lon, lat, size, properties = {}) => ({
   type: "Feature",
