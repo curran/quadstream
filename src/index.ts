@@ -22,6 +22,7 @@ export type { PartitionFetcher, LoaderOptions } from "./loader.js";
 export {
   validPolygon,
   simpleClosedRing,
+  simpleClosedRingReference,
   segmentsIntersect,
   pointInRing,
   intersects,

@@ -3,10 +3,7 @@ import {
   attachGlobeInteraction,
   resizedView,
 } from "./interaction.mjs";
-import {
-  quantizeAutoLevel,
-  createLatestGeometry,
-} from "./lod.mjs";
+import { quantizeAutoLevel, createLatestGeometry } from "./lod.mjs";
 import { createGlobeRenderer } from "./map.mjs";
 import { createMinimapRenderer } from "./minimap.mjs";
 import { GlobeWorkerClient } from "./client.mjs";
@@ -21,6 +18,14 @@ const $ = (id) => document.getElementById(id),
   miniCtx = miniCanvas?.getContext("2d");
 // ?clip=0 restores whole-feature culling only, for A/B comparison.
 const clipEnabled = new URLSearchParams(location.search).get("clip") !== "0";
+// ?minpx=N hides polygons smaller than N square pixels (0 shows everything).
+const minPxParam = Number(new URLSearchParams(location.search).get("minpx"));
+let minPx =
+  new URLSearchParams(location.search).has("minpx") &&
+  Number.isFinite(minPxParam) &&
+  minPxParam >= 0
+    ? minPxParam
+    : 1;
 const draw = createGlobeRenderer(globalThis.d3, ctx, {
   cull: true,
   clip: clipEnabled,
@@ -38,17 +43,23 @@ let original,
   frame,
   client,
   latest,
+  quadtree = [],
   epoch = 0,
   raf = 0,
   ready = false,
-  sourceName = "110m",
+  sourceName = "50m",
   selectedFile = null,
   abort,
   disposed = false;
 const regional = createRegionalLayers({
-  configs: regionalConfig({ counties: new URLSearchParams(location.search).get("counties") !== "0" }),
-  createWorker: () => new Worker(new URL("./regional-worker.mjs", import.meta.url), { type: "module" }),
-  onChange: () => schedule(),
+  configs: regionalConfig({
+    counties: new URLSearchParams(location.search).get("counties") !== "0",
+  }),
+  createWorker: () =>
+    new Worker(new URL("./regional-worker.mjs", import.meta.url), {
+      type: "module",
+    }),
+  onChange: schedule,
 });
 let drawStats = null;
 let requests = 0,
@@ -112,7 +123,17 @@ function diagnostics() {
           ")"
         : "—"),
     "Atlas payload: " + atlasBytes + " bytes | geometry queries: " + requests,
-    "Regional layers: " + regional.status().map((s) => s.id + ": " + s.phase + (s.warning || s.error ? " (" + (s.warning || s.error) + ")" : "")).join(" | "),
+    "Regional layers: " +
+      regional
+        .status()
+        .map(
+          (s) =>
+            s.id +
+            ": " +
+            s.phase +
+            (s.warning || s.error ? " (" + (s.warning || s.error) + ")" : ""),
+        )
+        .join(" | "),
     ...(frame?.reasons ?? []),
   ].join("\n");
   // Inspectable state for accessibility diagnostics and deterministic browser tests.
@@ -127,6 +148,8 @@ function diagnostics() {
     vertices: String(frame?.vertices ?? ""),
     drawnVertices: String(drawStats?.vertices ?? ""),
     drawMode: drawStats?.mode ?? "cull-only",
+    smallDropped: String(drawStats?.smallDropped ?? 0),
+    minPx: String(minPx),
     clipRebuilt: String(drawStats?.rebuilt ?? ""),
     sourceVertices: String(frame?.sourceVertices ?? ""),
     mode: $("mode").value,
@@ -139,41 +162,58 @@ function schedule() {
     raf = 0;
     const start = performance.now();
     const activeGeojson =
-      $("mode").value === "original" ? original : (frame?.geojson ?? original);
+      ready && $("mode").value === "original"
+        ? original
+        : ready
+          ? frame?.geojson
+          : null;
     const minimapGeojson = minimapFrame?.geojson ?? null;
-    const zoom = state.initialScale > 0 ? state.scale / state.initialScale : 1;
-    const target = Math.max(0, Math.min(19, Number($("level").value) + Math.log2(zoom)));
-    const level = quantizeAutoLevel(state.interacting ? Math.min(Number($("interactive-level").value), target) : target, state.interacting);
     const overlays = regional.update(state, {
-      enabled: Boolean(original) && !selectedFile && sourceName !== "fixture",
+      enabled:
+        ready && Boolean(activeGeojson) && !selectedFile && sourceName !== "fixture",
       original: $("mode").value === "original",
-      level,
+      level: targetLevelForView(),
     });
-    const drawn = draw(state, activeGeojson, overlays);
+    const drawn = draw(
+      {
+        ...state,
+        minPx: $("mode").value === "original" ? 0 : minPx,
+        showQuadtree: $("show-quadtree").checked,
+        quadtreeLevel:
+          $("mode").value === "original"
+            ? Number.MAX_SAFE_INTEGER
+            : (frame?.level ?? 0),
+      },
+      activeGeojson,
+      original,
+      quadtree,
+      overlays,
+    );
     drawStats = drawn.stats;
     drawMinimap?.(
-      { ...state, miniSize: 160 },
+      {
+        ...state,
+        miniSize: 160,
+        minPx: $("mode").value === "original" ? 0 : minPx,
+      },
       minimapGeojson,
     );
     frameMs = performance.now() - start;
     diagnostics();
   });
 }
+function targetLevelForView() {
+  const targetLevel = Number($("level").value),
+    zoomRatio = state.initialScale > 0 ? state.scale / state.initialScale : 1,
+    settled = Math.max(0, Math.min(19, targetLevel + Math.log2(zoomRatio)));
+  return quantizeAutoLevel(settled);
+}
 function requestLevel() {
   if (!ready || !latest || $("mode").value === "original") return;
   const targetLevel = Number($("level").value),
-    interactiveCap = Number($("interactive-level").value),
-    zoomRatio =
-      state.initialScale > 0 ? state.scale / state.initialScale : 1,
-    settled = Math.max(0, Math.min(19, targetLevel + Math.log2(zoomRatio))),
-    effective = state.interacting
-      ? Math.min(interactiveCap, settled)
-      : settled,
-    level = quantizeAutoLevel(effective, state.interacting);
+    level = targetLevelForView();
   $("level-value").value = targetLevel;
   $("level-value").textContent = targetLevel;
-  $("interactive-level-value").value = interactiveCap;
-  $("interactive-level-value").textContent = interactiveCap;
   if (latest.target !== level) {
     setStatus("Refining geometry…", "loading");
     void latest.select(level);
@@ -182,7 +222,7 @@ function requestLevel() {
 function update(patch) {
   Object.assign(state, patch);
   schedule();
-  if ("scale" in patch || "interacting" in patch) requestLevel();
+  if ("scale" in patch) requestLevel();
 }
 const gesture = createGlobeInteraction({
   getState: () => state,
@@ -245,6 +285,7 @@ async function init() {
   frame = undefined;
   minimapFrame = undefined;
   original = undefined;
+  quadtree = [];
   requests = 0;
   atlasBytes = 0;
   regional.reset();
@@ -297,6 +338,7 @@ async function init() {
     const result = await current.init(original);
     if (id !== epoch || disposed) return;
     original = result.original;
+    quadtree = result.quadtree ?? [];
     ready = true;
     latest = createLatestGeometry({
       request: (l) => {
@@ -365,12 +407,13 @@ $("level").addEventListener("input", () => {
   requestLevel();
   schedule();
 });
-$("interactive-level").addEventListener("input", () => {
-  $("interactive-level-value").value = $("interactive-level").value;
-  $("interactive-level-value").textContent = $("interactive-level").value;
-  requestLevel();
+$("min-px").value = minPx;
+$("min-px").addEventListener("input", () => {
+  const v = Number($("min-px").value);
+  minPx = Number.isFinite(v) && v >= 0 ? v : 0;
   schedule();
 });
+$("show-quadtree").addEventListener("change", schedule);
 $("reset").addEventListener("click", reset);
 $("retry").addEventListener("click", () => void init());
 $("atlas").addEventListener("change", () => {
@@ -383,9 +426,13 @@ $("file").addEventListener("change", () => {
   selectedFile = $("file").files[0] ?? null;
   void init();
 });
-if (new URLSearchParams(location.search).get("fixture") === "1") {
-  $("atlas").value = "fixture";
-  sourceName = "fixture";
+{
+  const params = new URLSearchParams(location.search),
+    requested = params.get("fixture") === "1" ? "fixture" : params.get("atlas");
+  if ([...$("atlas").options].some((o) => o.value === requested)) {
+    $("atlas").value = requested;
+    sourceName = requested;
+  }
 }
 window.addEventListener(
   "pagehide",

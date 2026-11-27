@@ -18,13 +18,23 @@ function forEachRingCoord(geometry, fn) {
   }
 }
 
+// Scratch unit vectors let the cap use one trig pass instead of two.
+let scratch = new Float64Array(3 * 4096);
 export function computeFeatureCap(feature) {
   let sx = 0,
     sy = 0,
     sz = 0,
     count = 0;
   forEachRingCoord(feature.geometry, ([lon, lat]) => {
+    if (count * 3 + 3 > scratch.length) {
+      const grown = new Float64Array(scratch.length * 2);
+      grown.set(scratch);
+      scratch = grown;
+    }
     const [x, y, z] = lonLatToVec(lon, lat);
+    scratch[count * 3] = x;
+    scratch[count * 3 + 1] = y;
+    scratch[count * 3 + 2] = z;
     sx += x;
     sy += y;
     sz += z;
@@ -37,11 +47,11 @@ export function computeFeatureCap(feature) {
     cy = sy / len,
     cz = sz / len;
   let minDot = 1;
-  forEachRingCoord(feature.geometry, ([lon, lat]) => {
-    const [x, y, z] = lonLatToVec(lon, lat);
-    const dot = cx * x + cy * y + cz * z;
+  for (let i = 0; i < count; i++) {
+    const dot =
+      cx * scratch[i * 3] + cy * scratch[i * 3 + 1] + cz * scratch[i * 3 + 2];
     if (dot < minDot) minDot = dot;
-  });
+  }
   const maxAngle = Math.acos(Math.max(-1, Math.min(1, minDot)));
   return {
     cx,
@@ -49,6 +59,24 @@ export function computeFeatureCap(feature) {
     cz,
     radiusRad: Math.min(Math.PI, maxAngle + CAP_MARGIN_RAD),
   };
+}
+
+// Every LOD frame keeps a subset of its source feature's vertices, so a cap
+// computed once from the full-detail source also bounds every frame feature.
+// Frame features are matched to the source by index and shared `properties`.
+const sourceCaps = new WeakMap();
+export function featureCap(feature, index, source) {
+  const original = source?.features?.[index];
+  if (
+    original &&
+    (original === feature ||
+      (original.properties && original.properties === feature.properties))
+  ) {
+    let caps = sourceCaps.get(source);
+    if (!caps) sourceCaps.set(source, (caps = []));
+    return (caps[index] ??= computeFeatureCap(original));
+  }
+  return computeFeatureCap(feature);
 }
 
 export function computeFeatureCaps(geojson) {
@@ -88,16 +116,22 @@ export function isCapVisible(cap, cone) {
   return dot >= Math.cos(maxAngle);
 }
 
-export function filterVisibleFeatures(geojson, state, capCache) {
+export function filterVisibleFeatures(geojson, state, capCache, source) {
   const features = geojson?.features;
   if (!features?.length) return geojson;
+  const cone = orthographicViewCone(state),
+    visible = [];
+  if (source) {
+    for (let i = 0; i < features.length; i++)
+      if (isCapVisible(featureCap(features[i], i, source), cone))
+        visible.push(features[i]);
+    return { type: "FeatureCollection", features: visible };
+  }
   let caps = capCache?.get(geojson);
   if (!caps) {
     caps = computeFeatureCaps(geojson);
     capCache?.set(geojson, caps);
   }
-  const cone = orthographicViewCone(state);
-  const visible = [];
   for (let i = 0; i < features.length; i++) {
     if (isCapVisible(caps[i], cone)) visible.push(features[i]);
   }
