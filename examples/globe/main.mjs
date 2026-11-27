@@ -15,7 +15,7 @@ import { createGlobeRenderer } from "./map.mjs";
 import { createMinimapRenderer } from "./minimap.mjs";
 import { GlobeWorkerClient } from "./client.mjs";
 import { fixture } from "./fixture.mjs";
-import { createRegionalLayers, regionalConfig } from "./regional.mjs";
+import { createRegionalLayers, regionalConfig, loadRegionalCatalog } from "./regional.mjs";
 const $ = (id) => document.getElementById(id),
   canvas = $("globe"),
   miniCanvas = $("minimap"),
@@ -105,6 +105,14 @@ const regional = createRegionalLayers({
     }),
   onChange: schedule,
 });
+if (new URLSearchParams(location.search).get("international") !== "0") {
+  loadRegionalCatalog().then((catalog) => {
+    if (!disposed) regional.addConfigs(regionalConfig({
+      catalog,
+      counties: new URLSearchParams(location.search).get("counties") !== "0",
+    }));
+  }).catch((error) => console.warn("International boundaries unavailable", error));
+}
 let drawStats = null;
 let requests = 0,
   frameMs = 0,

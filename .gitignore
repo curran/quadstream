@@ -6,3 +6,8 @@ coverage/
 
 playwright-report/
 test-results/
+
+# Generated international geometry (local only)
+examples/globe/regional-data/*.json
+examples/globe/regional-data/catalog.tmp
+!examples/globe/regional-data/catalog.json
