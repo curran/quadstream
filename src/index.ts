@@ -76,3 +76,13 @@ export {
   importSphericalTopoJSON,
 } from "./spherical-dataset.js";
 export type { SphericalQueryOptions } from "./spherical-dataset.js";
+
+export {
+  computeFeatureCap,
+  computeFeatureCaps,
+  isCapVisible,
+  filterSphericalFeatures,
+} from "./spherical-cull.js";
+export type { SphericalCap, SphericalViewCone } from "./spherical-cull.js";
+export { clipWindow, clipToWindow } from "./spherical-clip.js";
+export type { SphericalClipWindow, SphericalClipStats, SphericalClipResult } from "./spherical-clip.js";
