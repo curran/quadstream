@@ -135,8 +135,8 @@ const { geojson, valid, promotedArcs } = globe.query({ level: 8.5 });
 ```
 
 Spherical queries reconstruct global geometry in memory. Fractional detail uses
-stable vertex-ID hashing; shared-arc promotion repairs invalid features without
-a global full-detail fallback. They do not support
+stable vertex-ID hashing for nominal priorities and topology-safe preprocessing
+for corrected activation thresholds, without query-time promotion. They do not support
 planar viewport bounds, v1 partition serialization or network streaming.
 They may reject inputs that cannot be validated in the reference hemisphere
 chart. See [spherical semantics](https://github.com/vizhub-studio/quadstream/blob/master/docs/SPHERICAL.md).
@@ -366,10 +366,12 @@ culling. Exported helpers include `canonicalLonLat`, `lonLatVector`,
 `sphericalPolygonSignature`, and `validSphericalPolygon`. Supporting types are
 `UnitVector`, `CubeFace`, `SphericalCell`, `SphericalPriorities`,
 `SphericalChart`, `SphericalPolygonSignature`, and `SphericalQueryOptions`.
-Spherical queries support fractional levels. Invalid features are repaired by
-promoting shared arcs to finer levels; `promotedArcs` reports the number of
-promoted arcs. `valid: false` indicates geometry that remains invalid at full
-detail. No global full-detail fallback is applied. See [spherical semantics](docs/SPHERICAL.md) for winding,
+Spherical queries support fractional levels. Preprocessing validates descending
+vertex-removal batches on a conservative tenth-level grid, retaining unsafe
+vertices at level zero. `activationLevels` exposes the corrected thresholds;
+`retainedVertices` counts rejected removals. The legacy `promotedArcs` query
+field is always zero. `valid: false` indicates a reconstruction invariant
+failure, not a request for a finer level. No global full-detail fallback is applied. See [spherical semantics](docs/SPHERICAL.md) for winding,
 poles, seams, charts, and topology junctions.
 
 Spherical reconstruction applies three additional safeguards:
@@ -382,8 +384,8 @@ Spherical reconstruction applies three additional safeguards:
 - closed rings that would reconstruct with fewer than three distinct vertices
   are restored from their source path rather than emitted as degenerate rings.
 
-These safeguards and shared-arc repair preserve shared topology without promoting
-the entire query to a finer level. The globe demo separately isolates malformed
+These safeguards and topology-safe preprocessing preserve shared-arc identity
+without promoting the query to a finer level. The globe demo separately isolates malformed
 source features, so one invalid atlas feature does not force its whole
 coordinate-connected component to full detail.
 
@@ -481,7 +483,7 @@ the canonical source and signatures, but does not build a planar spatial index.
 | Viewport feature lookup                              | O(w + J log(J + 1))                                                     | O(w + J) conservative auxiliary bound; w counts visited nodes and tested entries; O(F + J log(J + 1)) worst case |
 | Arc/path reconstruction before polygon validation    | O(T + K + J)                                                            | O(T + K + J) conservative bound for full-ID scans, reversed copies, temporary paths and output                   |
 | Planar feature reconstruction with validity checking | O(T + K + J + Q)                                                        | Same linear working storage; quadratic time does not imply quadratic storage                                     |
-| Spherical shared-arc repair                          | O(L(T_all + F + Q_full)) worst case                                     | O(T_all + F + A) working geometry, plus retained source and trees                                                |
+| Spherical topology-safe preprocessing                | O(V (T_all + Q_full)) conservative worst-case time; validated batches normally reduce checks | O(V + T_all + A) working storage, plus source and trees |
 
 BLG is a min-heap on detail priority and an inorder sequence on path
 position. An entire subtree can be skipped when its root exceeds the
@@ -515,16 +517,12 @@ polygon predicates. A global fallback can raise K and Q to their
 full-resolution values. Fractional levels mean U is not generally bounded
 by L in the in-memory planar engine.
 
-Spherical queries always reconstruct the global collection. Each repair pass
-scans feature/arc references, promotes shared arcs of invalid features by
-one level and reconstructs affected features. The implementation explicitly
-caps the number of passes at O(L), so the worst case is O(L) times global
-reconstruction and validation, with Q_full computed from full-detail
-polygon sizes. It can finish earlier, or report invalid geometry after the
-cap; it does not prove global convergence or absence of unrelated
-cross-feature intersections. The cooperative interruptible variant has the
-same asymptotic work, yielding between features rather than inside expensive
-polygon predicates.
+Spherical queries always reconstruct the global collection directly from the
+corrected BLG trees and perform one diagnostic validation pass. The descending
+preprocessing pass groups candidate removals by affected polygon or line,
+validates batches, and bisects rejected batches. A shared vertex has a single
+activation threshold across all its arcs. Unrelated cross-feature intersections
+are not checked by the reference validator.
 
 ### Adapters, serialization and progressive loading
 
@@ -640,8 +638,8 @@ even when the main view is culled.
 ### What these bounds imply
 
 - The principal asymptotic bottleneck is pairwise geometric validation, not
-  Cartesian-tree construction. Spherical candidate checks and repeated
-  shared-arc repair can multiply that cost.
+  Cartesian-tree construction. Spherical preprocessing candidate checks can
+  multiply that cost, in exchange for direct query reconstruction.
 - The sparse hierarchy reduces stored grid cells from a potential O(4^L)
   per face to O(V), and shared topology stores each distinct arc once.
   Neither fact makes all feature queries output-sensitive.
@@ -654,7 +652,7 @@ even when the main view is culled.
   of pairing them exhaustively are possible future optimizations. They must
   retain deterministic output and existing validity/fallback behavior.
 - A fair benchmark should separately measure input topology, priority
-  construction, BLG, validation, cold/warm queries, repair passes,
+  construction, BLG, preprocessing validation, cold/warm queries,
   partition metadata and payload bytes, peak memory, and rendering. Compare
   datasets with different vertex counts, feature overlap, hole counts and
   shared-boundary ratios; vertex count alone does not characterize cost.

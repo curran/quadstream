@@ -1,11 +1,11 @@
 import { buildTopologyWithPolicy } from "./topology.js";
 import { decodeTopoJSON } from "./adapters.js";
 import {
-  buildArcTrees,
   reconstructFeature,
   type CollapsedRingPolicy,
 } from "./reconstruct.js";
 import { stableBlgRandom } from "./blg.js";
+import { buildTopologySafeArcTrees } from "./spherical-preprocess.js";
 import { signedArea } from "./geometry.js";
 import {
   canonicalLonLat,
@@ -206,6 +206,10 @@ export class SphericalQuadstreamDataset {
   readonly topology: Topology;
   readonly priorities: SphericalPriorities;
   readonly arcTrees: readonly BlgTree[];
+  /** Corrected global vertex thresholds, independent of query order. */
+  readonly activationLevels: readonly number[];
+  /** Vertices retained at all levels because a removal failed validation. */
+  readonly retainedVertices: number;
   /**
    * Per feature and path: the lowest level at which the closed ring has 3
    * distinct vertices activated by the sparse quadtree (the third-smallest
@@ -228,11 +232,19 @@ export class SphericalQuadstreamDataset {
       this.topology.vertices,
       maxLevel,
     );
-    this.arcTrees = buildArcTrees(
-      this.topology.arcs,
-      this.priorities.levelByVertexId,
-      this.topology.vertices.map((v) => v.critical),
+    const prepared = buildTopologySafeArcTrees(
+      this.topology,
+      this.topology.vertices.map((v) =>
+        activationLevel(
+          this.priorities.levelByVertexId[v.id]!,
+          v.critical ? 1 : stableBlgRandom(v.id),
+        ),
+      ),
+      this.signatures,
     );
+    this.arcTrees = prepared.trees;
+    this.activationLevels = prepared.activationLevels;
+    this.retainedVertices = prepared.retainedVertices;
     this.ringActivation = this.topology.features.map((f) =>
       f.paths.map((path) => this.pathActivation(path)),
     );
@@ -260,7 +272,7 @@ export class SphericalQuadstreamDataset {
     }
     return m3;
   }
-  /** Nominal-level polygon eligibility, frozen before validity repair. */
+  /** Nominal-level polygon eligibility, independent of corrected vertex thresholds. */
   private visibility(level: number): Visibility {
     let hiddenPolygons = 0;
     const hidden: (Set<number> | undefined)[] = [],
@@ -311,9 +323,6 @@ export class SphericalQuadstreamDataset {
         const v = this.topology.vertices[id];
         return v ? [v.x, v.y] : undefined;
       },
-      full = this.priorities.maxLevel - 1,
-      promoted = new Map<number, number>(),
-      levelOf = (arcId: number) => promoted.get(arcId) ?? level,
       check = (i: number, r: Run) => {
         const p = polygons(r.feature.geometry).filter((g) => g.length),
           s = vis ? vis.signatures[i]! : this.signatures[i]!;
@@ -329,61 +338,24 @@ export class SphericalQuadstreamDataset {
           f,
           this.topology.arcs,
           this.arcTrees,
-          levelOf,
+          level,
           lookup,
           false,
           false,
-          drop ? { collapsed: "drop", hiddenPaths: vis!.hidden[i] } : undefined,
+          drop ? { collapsed: "drop", hiddenPaths: vis!.hidden[i] } : { collapsed: "drop" },
         );
-    return { level, full, promoted, levelOf, check, run, vis };
-  }
-  /** Promote every arc of an invalid feature to the next integer level; arcs are shared, so neighbours see the same selection. */
-  private promote(
-    s: ReturnType<SphericalQuadstreamDataset["session"]>,
-    ok: boolean[],
-  ): Set<number> {
-    const touched = new Set<number>();
-    ok.forEach((good, i) => {
-      if (good) return;
-      for (const path of this.topology.features[i]!.paths)
-        for (const ref of path.arcs) {
-          const id = Math.abs(ref) - 1,
-            cur = s.levelOf(id);
-          if (cur >= s.full) continue;
-          s.promoted.set(id, Math.min(s.full, Math.floor(cur) + 1));
-          touched.add(id);
-        }
-    });
-    return touched;
-  }
-  private affected(i: number, touched: Set<number>) {
-    return this.topology.features[i]!.paths.some((p) =>
-      p.arcs.some((r) => touched.has(Math.abs(r) - 1)),
-    );
+    return { level, check, run, vis };
   }
   query(options: SphericalQueryOptions = {}): QueryResult {
     const s = this.session(options);
     const results = this.topology.features.map(s.run);
-    const ok = results.map((r, i) => s.check(i, r));
-    let promotedArcs = 0;
-    for (let pass = 0; pass <= s.full + 1; pass++) {
-      const touched = this.promote(s, ok);
-      if (!touched.size) break;
-      promotedArcs = s.promoted.size;
-      this.topology.features.forEach((f, i) => {
-        if (this.affected(i, touched)) {
-          results[i] = s.run(f, i);
-          ok[i] = s.check(i, results[i]!);
-        }
-      });
-    }
-    return this.formatResult(s, results, ok.every(Boolean), promotedArcs);
+    const valid = results.every((r, i) => s.check(i, r));
+    return this.formatResult(s, results, valid);
   }
   private formatResult(
     s: ReturnType<SphericalQuadstreamDataset["session"]>,
     results: Run[],
     valid: boolean,
-    promotedArcs: number,
   ): QueryResult {
     return {
       geojson: {
@@ -400,7 +372,7 @@ export class SphericalQuadstreamDataset {
       },
       level: s.level,
       valid,
-      promotedArcs,
+      promotedArcs: 0,
       ...(s.vis
         ? {
             hiddenPolygons: s.vis.hiddenPolygons,
@@ -435,21 +407,8 @@ export class SphericalQuadstreamDataset {
       ok.push(s.check(i, r));
       if (!(await tick())) return null;
     }
-    let promotedArcs = 0;
-    for (let pass = 0; pass <= s.full + 1; pass++) {
-      const touched = this.promote(s, ok);
-      if (!touched.size) break;
-      promotedArcs = s.promoted.size;
-      for (let i = 0; i < this.topology.features.length; i++) {
-        if (this.affected(i, touched)) {
-          results[i] = s.run(this.topology.features[i]!, i);
-          ok[i] = s.check(i, results[i]!);
-          if (!(await tick())) return null;
-        }
-      }
-    }
     if (shouldAbort?.()) return null;
-    return this.formatResult(s, results, ok.every(Boolean), promotedArcs);
+    return this.formatResult(s, results, ok.every(Boolean));
   }
 }
 export function buildSphericalQuadstream(
