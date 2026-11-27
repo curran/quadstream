@@ -135,7 +135,9 @@ The window is the view cone plus a margin and extra padding, and its result is
 reused until the live cone leaves it, so dragging rarely re-clips. Crossings are
 computed from a canonical edge orientation so neighbours share bit-identical
 points. Views whose cone (plus margin) approaches a hemisphere fall back to
-whole-feature culling. The minimap highlights the geometry actually drawn.
+whole-feature culling. The minimap highlights the land geometry submitted to D3, including the padded clip window (not necessarily the exact rectangular viewport). Its dimmed context stays coarse and independent; regional line overlays are not highlighted.
+
+Ring clipping classifies each vertex once with a dot product and retains only visible runs and boundary events, without allocating a visibility bitmap. The diagnostics count classified, inside and outside vertices for scanned rings on the last clip build; cap fast paths and winding fallback work are not included. Global reconstruction and topology repair still precede clipping.
 `?clip=0` restores whole-feature culling for A/B comparison; diagnostics report
 vertices and rings drawn, clipped, wrapped and dropped.
 

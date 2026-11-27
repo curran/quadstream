@@ -141,4 +141,8 @@ test("minimap highlights the supplied visible geometry instead of recomputing cu
   const withDefault = fills(undefined);
   const withEmpty = fills({ type: "FeatureCollection", features: [] });
   assert.ok(withDefault > withEmpty);
+  assert.equal(fills(null), withEmpty);
+  ctx.ops.length = 0;
+  draw(state, undefined, all);
+  assert.equal(ctx.ops.filter((o) => o[0] === "fill").length, 2);
 });
