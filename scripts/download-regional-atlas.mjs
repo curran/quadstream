@@ -59,7 +59,7 @@ for (const level of ["ADM1", "ADM2"]) {
     if (!/^[A-Z]{3}$/.test(iso) || iso === "USA" ||
         (countries.size && !countries.has(iso))) continue;
     try {
-      const meta = JSON.parse(await get(api + iso + "/" + level + "/"));
+      const meta = summary;
       const source = meta.tjDownloadURL;
       if (!source || !source.startsWith("https://")) throw new Error("Missing TopoJSON URL");
       const raw = await get(source);
