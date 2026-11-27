@@ -498,7 +498,6 @@ async function init() {
     if (id !== epoch || disposed) return;
     original = result.original;
     quadtree = result.quadtree ?? [];
-    ready = true;
     latest = createLatestGeometry({
       request: (l) => {
         requests++;
@@ -509,7 +508,8 @@ async function init() {
         frame = f;
         if ($("mode").value === "quadstream")
           setStatus(
-            "Ready · LOD " +
+            (f.level === latest.target ? "Ready" : "Refining geometry…") +
+              " · LOD " +
               f.level +
               " · " +
               f.vertices +
@@ -519,7 +519,7 @@ async function init() {
               (f.fallbackGroups || f.invalidGroups
                 ? " · source fallback/invalid coarse geometry"
                 : ""),
-            "ready",
+            f.level === latest.target ? "ready" : "loading",
           );
         schedule();
       },
@@ -527,7 +527,10 @@ async function init() {
         if ($("mode").value === "quadstream") error(e);
       },
     });
-    minimapFrame = await current.query(MINIMAP_LEVEL);
+    const mini = await current.query(MINIMAP_LEVEL);
+    if (id !== epoch || disposed) return;
+    minimapFrame = mini;
+    ready = true;
     if ($("mode").value === "original") setStatus("Original geometry", "ready");
     else requestLevel();
     schedule();
@@ -544,7 +547,8 @@ $("mode").addEventListener("change", () => {
   } else {
     if (frame)
       setStatus(
-        "Ready · LOD " +
+        (frame.level === latest?.target ? "Ready" : "Refining geometry…") +
+          " · LOD " +
           frame.level +
           " · " +
           frame.vertices +
@@ -554,7 +558,7 @@ $("mode").addEventListener("change", () => {
           (frame.fallbackGroups || frame.invalidGroups
             ? " · source fallback/invalid coarse geometry"
             : ""),
-        "ready",
+        frame.level === latest?.target ? "ready" : "loading",
       );
     requestLevel();
   }

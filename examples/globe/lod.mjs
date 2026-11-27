@@ -31,52 +31,74 @@ export function levelForScale(
 export function quantizeAutoLevel(level) {
   return Number((Math.round(level * 10) / 10).toFixed(1));
 }
+// Completion-driven throttle: one active query, one replaceable desired level.
+// A completed frame is useful even when the camera has already moved on.
 export function createLatestGeometry({ request, onFrame, onError = () => {} }) {
   let generation = 0,
     lastSeq = 0,
     desired = null,
+    rendered = null,
+    running = false,
     disposed = false;
   const cache = new Map();
-  return {
-    async select(level) {
-      if (disposed || desired === level) return;
-      desired = level;
-      const id = ++generation;
-      try {
-        let frame = cache.get(level);
-        const fromCache = Boolean(frame);
-        if (!frame) {
-          frame = await request(level);
-          if (disposed || id !== generation) return;
-          cache.set(level, frame);
-          if (cache.size > 4) cache.delete(cache.keys().next().value);
-        }
-        if (!disposed && id === generation) {
-          const seq = frame?.seq;
-          if (!fromCache && seq != null) {
-            if (seq < lastSeq) return;
-            lastSeq = seq;
+
+  async function drain() {
+    if (running || disposed) return;
+    running = true;
+    try {
+      while (!disposed && desired !== null && desired !== rendered) {
+        const level = desired,
+          id = generation;
+        try {
+          let frame = cache.get(level);
+          if (!frame) {
+            frame = await request(level);
+            if (disposed || id !== generation) continue;
+            const seq = frame?.seq;
+            if (seq != null) {
+              if (seq < lastSeq) throw new Error("Out-of-order geometry frame");
+              lastSeq = seq;
+            }
+            cache.set(level, frame);
+            if (cache.size > 4) cache.delete(cache.keys().next().value);
           }
+          rendered = level;
           onFrame(frame);
-        }
-      } catch (e) {
-        if (!disposed && id === generation) {
-          desired = null;
-          onError(e);
+        } catch (e) {
+          if (disposed || id !== generation) continue;
+          // An obsolete failure must not block the newest target. A failure
+          // of the current target may be retried by a subsequent selection.
+          if (desired === level) {
+            desired = null;
+            onError(e);
+          }
         }
       }
+    } finally {
+      running = false;
+    }
+  }
+
+  function invalidate() {
+    generation++;
+    lastSeq = 0;
+    desired = null;
+    rendered = null;
+    cache.clear();
+  }
+
+  return {
+    async select(level) {
+      if (disposed) return;
+      desired = level;
+      // While busy this records intent only; the existing drain owns the
+      // query and will consume the latest target when that query completes.
+      await drain();
     },
-    invalidate() {
-      generation++;
-      lastSeq = 0;
-      desired = null;
-      cache.clear();
-    },
+    invalidate,
     dispose() {
       disposed = true;
-      generation++;
-      lastSeq = 0;
-      cache.clear();
+      invalidate();
     },
     get target() {
       return desired;
