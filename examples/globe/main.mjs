@@ -129,8 +129,7 @@ function schedule() {
     const start = performance.now();
     const activeGeojson =
       $("mode").value === "original" ? original : (frame?.geojson ?? original);
-    // Until the coarse minimap level arrives, show the decoded source.
-    const minimapGeojson = minimapFrame?.geojson ?? original ?? null;
+    const minimapGeojson = minimapFrame?.geojson ?? null;
     const drawn = draw(state, activeGeojson, original);
     drawStats = drawn.stats;
     drawMinimap?.({ ...state, miniSize: 160 }, minimapGeojson);
@@ -141,15 +140,11 @@ function schedule() {
 function requestLevel() {
   if (!ready || !latest || $("mode").value === "original") return;
   const targetLevel = Number($("level").value),
-    interactiveCap = Number($("interactive-level").value),
     zoomRatio = state.initialScale > 0 ? state.scale / state.initialScale : 1,
     settled = Math.max(0, Math.min(19, targetLevel + Math.log2(zoomRatio))),
-    effective = state.interacting ? Math.min(interactiveCap, settled) : settled,
-    level = quantizeAutoLevel(effective, state.interacting);
+    level = quantizeAutoLevel(settled);
   $("level-value").value = targetLevel;
   $("level-value").textContent = targetLevel;
-  $("interactive-level-value").value = interactiveCap;
-  $("interactive-level-value").textContent = interactiveCap;
   if (latest.target !== level) {
     setStatus("Refining geometry…", "loading");
     void latest.select(level);
@@ -158,7 +153,7 @@ function requestLevel() {
 function update(patch) {
   Object.assign(state, patch);
   schedule();
-  if ("scale" in patch || "interacting" in patch) requestLevel();
+  if ("scale" in patch) requestLevel();
 }
 const gesture = createGlobeInteraction({
   getState: () => state,
@@ -337,11 +332,6 @@ $("mode").addEventListener("change", () => {
 $("level").addEventListener("input", () => {
   $("level-value").value = $("level").value;
   $("level-value").textContent = $("level").value;
-  requestLevel();
-});
-$("interactive-level").addEventListener("input", () => {
-  $("interactive-level-value").value = $("interactive-level").value;
-  $("interactive-level-value").textContent = $("interactive-level").value;
   requestLevel();
 });
 $("reset").addEventListener("click", reset);

@@ -322,19 +322,13 @@ test("fractional target LOD values select partial BLG levels with auto detail", 
   await expect(page.locator("#level-value")).toHaveText("7.3");
   await expect(globe(page)).toHaveAttribute("data-rendered-level", "7.3");
 });
-test("interactive max LOD caps detail while dragging and refines on release", async ({
-  page,
-}) => {
+test("level stays constant while dragging", async ({ page }) => {
   await page.goto(url);
   await ready(page);
   await manual(page, 12);
-  await page.locator("#interactive-level").fill("5");
-  await expect(page.locator("#interactive-level-value")).toHaveText("5");
   await pointer(page, "pointerdown", 1, 400, 400);
   await expect(globe(page)).toHaveAttribute("data-interacting", "true");
-  await expect
-    .poll(async () => (await state(page)).level)
-    .toBeLessThanOrEqual(5);
+  await expect(globe(page)).toHaveAttribute("data-rendered-level", "12");
   await pointer(page, "pointerup", 1, 400, 400);
   await expect(globe(page)).toHaveAttribute("data-interacting", "false");
   await ready(page);
