@@ -1,11 +1,11 @@
 // Provisional scale thresholds, not a measured projected-error guarantee.
-export const MIN_AUTO_LEVEL = 4,
+export const MIN_AUTO_LEVEL = 4.2,
   MAX_LEVEL = 19;
-// Auto LOD follows level = MIN_AUTO_LEVEL + log2(scale / BASE_SCALE).
+// Keep the scale-to-level calibration separate from the rendering floor.
+export const BASE_LOD = 4;
 export const BASE_SCALE = 120;
-export const levelScale = (level) => BASE_SCALE * 2 ** (level - MIN_AUTO_LEVEL);
-export const scaleLevel = (scale) =>
-  MIN_AUTO_LEVEL + Math.log2(scale / BASE_SCALE);
+export const levelScale = (level) => BASE_SCALE * 2 ** (level - BASE_LOD);
+export const scaleLevel = (scale) => BASE_LOD + Math.log2(scale / BASE_SCALE);
 export function levelForScale(
   scale,
   previous,
@@ -18,7 +18,7 @@ export function levelForScale(
 ) {
   if (!Number.isFinite(scale) || scale <= 0)
     throw new Error("Invalid projection scale");
-  const continuous = min + Math.log2(scale / base);
+  const continuous = BASE_LOD + Math.log2(scale / base);
   const clamped = Math.max(min, Math.min(max, continuous));
   if (previous === undefined) return clamped;
   const prior = Math.max(min, Math.min(max, previous));
@@ -30,6 +30,22 @@ export function levelForScale(
 }
 export function quantizeAutoLevel(level) {
   return Number((Math.round(level * 10) / 10).toFixed(1));
+}
+// The slider controls the base LOD at 1x; zoom cannot lower the rendered LOD
+// below the demo floor. Quantize only after clamping the continuous level.
+export function levelForZoom(baseLevel, zoomRatio) {
+  if (
+    !Number.isFinite(baseLevel) ||
+    !Number.isFinite(zoomRatio) ||
+    zoomRatio <= 0
+  )
+    throw new Error("Invalid globe LOD or zoom ratio");
+  return quantizeAutoLevel(
+    Math.max(
+      MIN_AUTO_LEVEL,
+      Math.min(MAX_LEVEL, baseLevel + Math.log2(zoomRatio)),
+    ),
+  );
 }
 // Completion-driven throttle: one active query, one replaceable desired level.
 // A completed frame is useful even when the camera has already moved on.
