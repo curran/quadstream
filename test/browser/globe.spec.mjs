@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { MIN_AUTO_LEVEL } from "../../examples/globe/lod.mjs";
 const url = "/examples/globe/index.html?fixture=1";
 const globe = (page) => page.locator("#globe");
 // Existing tests assert exact synchronous camera state, so they run with
@@ -67,7 +68,7 @@ async function manual(page, level) {
   await ready(page);
   await expect(globe(page)).toHaveAttribute(
     "data-rendered-level",
-    String(level),
+    String(Math.max(MIN_AUTO_LEVEL, level)),
   );
 }
 // Compare within one browser, at an identical idle camera and full LOD.
@@ -290,6 +291,7 @@ test("manual levels reduce geometry and return full detail; original toggle draw
   await ready(page);
   await manual(page, 0);
   const a = await state(page);
+  expect(a.level).toBe(MIN_AUTO_LEVEL);
   expect(a.vertices).toBeLessThan(a.source);
   await manual(page, 19);
   const b = await state(page);
@@ -311,6 +313,24 @@ test("fractional target LOD values select partial BLG levels with auto detail", 
   await expect(page.locator("#level")).toHaveValue("7.3");
   await expect(page.locator("#level-value")).toHaveText("7.3");
   await expect(globe(page)).toHaveAttribute("data-rendered-level", "7.3");
+});
+test("zoom-out clamps actual requested and rendered LOD, then zoom-in resumes the curve", async ({
+  page,
+}) => {
+  await page.goto(url);
+  await ready(page);
+  await expect(globe(page)).toHaveAttribute("data-rendered-level", "4.2");
+  await manual(page, 5);
+  await atlasView(page, [0, -20, 0], 0.6);
+  await expect(globe(page)).toHaveAttribute("data-target-level", "4.3");
+  await expect(globe(page)).toHaveAttribute("data-rendered-level", "4.3");
+  await page.locator("#level").fill("4");
+  await ready(page);
+  await expect(globe(page)).toHaveAttribute("data-target-level", "4.2");
+  await expect(globe(page)).toHaveAttribute("data-rendered-level", "4.2");
+  await atlasView(page, [0, -20, 0], 2);
+  await expect(globe(page)).toHaveAttribute("data-target-level", "5");
+  await expect(globe(page)).toHaveAttribute("data-rendered-level", "5");
 });
 test("level stays constant while dragging", async ({ page }) => {
   await page.goto(url);

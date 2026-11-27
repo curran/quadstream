@@ -6,14 +6,17 @@ import {
   resizedView,
 } from "./interaction.mjs";
 import { createCamera } from "./physics.mjs";
-import { quantizeAutoLevel, createLatestGeometry } from "./lod.mjs";
+import {
+  MIN_AUTO_LEVEL,
+  levelForZoom,
+  createLatestGeometry,
+} from "./lod.mjs";
 import { createGlobeRenderer } from "./map.mjs";
 import { createMinimapRenderer } from "./minimap.mjs";
 import { GlobeWorkerClient } from "./client.mjs";
 import { fixture } from "./fixture.mjs";
 import { createRegionalLayers, regionalConfig } from "./regional.mjs";
 const $ = (id) => document.getElementById(id),
-  MINIMAP_LEVEL = 4,
   canvas = $("globe"),
   miniCanvas = $("minimap"),
   status = $("status"),
@@ -322,9 +325,8 @@ function render() {
 }
 function targetLevelForView() {
   const targetLevel = Number($("level").value),
-    zoomRatio = state.initialScale > 0 ? state.scale / state.initialScale : 1,
-    settled = Math.max(0, Math.min(19, targetLevel + Math.log2(zoomRatio)));
-  return quantizeAutoLevel(settled);
+    zoomRatio = state.initialScale > 0 ? state.scale / state.initialScale : 1;
+  return levelForZoom(targetLevel, zoomRatio);
 }
 function requestLevel() {
   if (!ready || !latest || $("mode").value === "original") return;
@@ -527,7 +529,7 @@ async function init() {
         if ($("mode").value === "quadstream") error(e);
       },
     });
-    const mini = await current.query(MINIMAP_LEVEL);
+    const mini = await current.query(MIN_AUTO_LEVEL);
     if (id !== epoch || disposed) return;
     minimapFrame = mini;
     ready = true;
