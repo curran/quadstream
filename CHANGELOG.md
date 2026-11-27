@@ -10,6 +10,8 @@ First planned experimental npm release of the modern Quadstream library.
 - CLI for build, inspect, validate, query and benchmark.
 - MapLibre integration and experimental in-memory spherical reconstruction.
 - Standalone map and globe demos with regression tests.
+- Globe: spring-smoothed pointer navigation and continuous keyboard
+  "spaceship" flight (thrust + viscous drag) with tuning sliders.
 - MIT license for modern implementation; legacy license terms preserved.
 - ESM package, TypeScript declarations and clean-install tarball validation.
 

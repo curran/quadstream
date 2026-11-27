@@ -99,12 +99,12 @@ a = (stiffness * (goal - x) - damping * v) / mass
 Add a "Navigation" group below the LOD row, reusing `.lod-row`,
 `<label>`, `<input type="range">`, `<output>`:
 
-| Slider      | id             | Range (suggested) | Default | Meaning                    |
-| ----------- | -------------- | ----------------- | ------- | -------------------------- |
-| Smoothness  | `smoothness`   | 0–1, step 0.01    | 0.6     | Master macro; 0 = off      |
-| Mass        | `nav-mass`     | 0.2–5, step 0.1   | 1       | Inertia                    |
-| Force       | `nav-force`    | 1–100, step 1     | 30      | Spring stiffness           |
-| Damping     | `nav-damping`  | 0–2 (ζ ratio)     | 1.0     | Viscosity; <1 overshoot    |
+| Slider     | id            | Range (suggested) | Default | Meaning                 |
+| ---------- | ------------- | ----------------- | ------- | ----------------------- |
+| Smoothness | `smoothness`  | 0–1, step 0.01    | 0.6     | Master macro; 0 = off   |
+| Mass       | `nav-mass`    | 0.2–5, step 0.1   | 1       | Inertia                 |
+| Force      | `nav-force`   | 1–100, step 1     | 30      | Spring stiffness        |
+| Damping    | `nav-damping` | 0–2 (ζ ratio)     | 1.0     | Viscosity; <1 overshoot |
 
 - Express damping as a **damping ratio ζ** (`c = 2ζ√(k·m)`) so 1.0 is always
   critically damped regardless of mass/force; the slider is intuitive and
