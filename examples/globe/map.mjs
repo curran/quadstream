@@ -1,5 +1,10 @@
 // Adapted from VizHub rPa9vFJ0kEvpjaJn-280C (MIT). Geometry only.
-import { filterVisibleFeatures } from "./cull.mjs";
+import {
+  computeFeatureCap,
+  filterVisibleFeatures,
+  isCapVisible,
+  orthographicViewCone,
+} from "./cull.mjs";
 import { createViewClipper } from "./clip.mjs";
 
 const faceAxes = {
@@ -45,7 +50,8 @@ function cellPoint(cell, u, v) {
     (Math.asin(z / length) * 180) / Math.PI,
   ];
 }
-function quadtreeGeometry(cells, level) {
+function quadtreeGeometry(cells, level, state, capCache) {
+  const cone = orthographicViewCone(state);
   const features = [];
   for (const cell of cells) {
     if (cell.level > level) continue;
@@ -54,7 +60,7 @@ function quadtreeGeometry(cells, level) {
       max = -1 + (2 * (cell.i + 1)) / side,
       low = -1 + (2 * cell.j) / side,
       high = -1 + (2 * (cell.j + 1)) / side;
-    features.push({
+    let feature = {
       type: "Feature",
       properties: null,
       geometry: {
@@ -69,9 +75,47 @@ function quadtreeGeometry(cells, level) {
           ],
         ],
       },
-    });
+    };
+    let cap = capCache.get(cell);
+    if (!cap) {
+      cap = computeFeatureCap(feature);
+      capCache.set(cell, cap);
+    }
+    if (isCapVisible(cap, cone)) features.push(feature);
   }
   return { type: "FeatureCollection", features };
+}
+
+function geometryRings(geometry) {
+  if (geometry?.type === "Polygon") return geometry.coordinates;
+  if (geometry?.type === "MultiPolygon")
+    return geometry.coordinates.flatMap((polygon) => polygon);
+  return [];
+}
+
+function coordinateKey(point) {
+  return `${Object.is(point[0], -0) ? 0 : point[0]},${Object.is(point[1], -0) ? 0 : point[1]}`;
+}
+
+function meshGeometry(geojson) {
+  const edges = new Map();
+  for (const feature of geojson?.features ?? []) {
+    for (const ring of geometryRings(feature.geometry)) {
+      for (let i = 1; i < ring.length; i++) {
+        const a = ring[i - 1],
+          b = ring[i],
+          aKey = coordinateKey(a),
+          bKey = coordinateKey(b);
+        if (aKey === bKey) continue;
+        const key = aKey < bKey ? `${aKey}|${bKey}` : `${bKey}|${aKey}`;
+        if (!edges.has(key)) edges.set(key, [a, b]);
+      }
+    }
+  }
+  return {
+    type: "MultiLineString",
+    coordinates: [...edges.values()],
+  };
 }
 
 export function createGlobeRenderer(
@@ -86,7 +130,9 @@ export function createGlobeRenderer(
     motionPrecision = 0.5;
   const sphere = { type: "Sphere" };
   const capCache = cull || clip ? new WeakMap() : null;
+  const quadtreeCapCache = new WeakMap();
   const clipper = clip ? createViewClipper() : null;
+  const meshCache = new WeakMap();
   let oceanKey;
   let ocean;
   function drawShape(g, fill, stroke) {
@@ -156,7 +202,16 @@ export function createGlobeRenderer(
       ctx.beginPath();
       path(target);
       ctx.fill();
-      if (!interacting) ctx.stroke();
+      if (interacting) {
+        let mesh = meshCache.get(target);
+        if (!mesh) {
+          mesh = meshGeometry(target);
+          meshCache.set(target, mesh);
+        }
+        ctx.beginPath();
+        path(mesh);
+        ctx.stroke();
+      } else ctx.stroke();
       projection.precision(finePrecision);
     }
     for (const { geometry, color, width } of overlays) {
@@ -170,7 +225,14 @@ export function createGlobeRenderer(
       ctx.strokeStyle = "yellow";
       ctx.lineWidth = 0.5;
       ctx.beginPath();
-      path(quadtreeGeometry(quadtree, state.quadtreeLevel));
+      path(
+        quadtreeGeometry(
+          quadtree,
+          state.quadtreeLevel,
+          state,
+          quadtreeCapCache,
+        ),
+      );
       ctx.stroke();
     }
     ctx.restore();

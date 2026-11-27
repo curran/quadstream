@@ -52,7 +52,7 @@ test("lazy load, cached frame, stale replies and reset", () => {
   w.onmessage({ data: { type: "ready", original } });
   assert.ok(layers.status().every((s) => s.phase === "idle"));
 });
-test("bundled atlas objects and interior-only regional meshes", async () => {
+test("bundled atlas objects and deduplicated regional meshes", async () => {
   for (const resolution of ["110m", "50m"]) {
     const atlas = JSON.parse(await readFile(new URL(
       "../node_modules/visionscarto-world-atlas/world/" + resolution + ".json", import.meta.url), "utf8"));
@@ -66,6 +66,11 @@ test("bundled atlas objects and interior-only regional meshes", async () => {
     const mesh = internalBoundaryMesh(atlas, config, topojson);
     assert.ok(mesh.coordinates.length > 10);
     assert.deepEqual(mesh, topojson.mesh(atlas, atlas.objects[config.object], (a, b) =>
-      a !== b && (!config.sameState || String(a.id).slice(0, 2) === String(b.id).slice(0, 2))));
+      (config.includeExternal && a == null && b == null) ||
+      (a != null &&
+        b != null &&
+        a !== b &&
+        (!config.sameState ||
+          String(a.id).slice(0, 2) === String(b.id).slice(0, 2)))));
   }
 });
