@@ -47,8 +47,17 @@ export function levelForZoom(baseLevel, zoomRatio) {
     ),
   );
 }
+// Compare against the current target, not the target at dispatch time.
+// A first frame is useful; subsequent frames must strictly reduce LOD error.
+export function improvesLod(level, rendered, target) {
+  return target != null && (
+    rendered == null ||
+    Math.abs(level - target) < Math.abs(rendered - target)
+  );
+}
+
 // Completion-driven throttle: one active query, one replaceable desired level.
-// A completed frame is useful even when the camera has already moved on.
+// Completed obsolete frames remain cached but cannot regress visible detail.
 export function createLatestGeometry({ request, onFrame, onError = () => {} }) {
   let generation = 0,
     lastSeq = 0,
@@ -78,8 +87,10 @@ export function createLatestGeometry({ request, onFrame, onError = () => {} }) {
             cache.set(level, frame);
             if (cache.size > 4) cache.delete(cache.keys().next().value);
           }
-          rendered = level;
-          onFrame(frame);
+          if (improvesLod(level, rendered, desired)) {
+            rendered = level;
+            onFrame(frame);
+          }
         } catch (e) {
           if (disposed || id !== generation) continue;
           // An obsolete failure must not block the newest target. A failure
