@@ -366,7 +366,7 @@ function geometryHarness() {
   return { c, requests, frames, errors, pending };
 }
 
-test("geometry publishes every started query and coalesces pending levels", async () => {
+test("geometry publishes improving intermediate frames and coalesces pending levels", async () => {
   const { c, requests, frames, pending } = geometryHarness();
   const run = c.select(4);
   for (let i = 1; i <= 30; i++) await c.select(4 + i / 10);
@@ -387,7 +387,7 @@ test("geometry publishes every started query and coalesces pending levels", asyn
   assert.deepEqual(frames, [4, 7, 9]);
 });
 
-test("direction reversal reuses completed cache entries after active work", async () => {
+test("direction reversal suppresses obsolete frames and reuses completed cache entries", async () => {
   const { c, requests, frames, pending } = geometryHarness();
   const first = c.select(4);
   pending[0].resolve(4);
@@ -398,10 +398,28 @@ test("direction reversal reuses completed cache entries after active work", asyn
   assert.deepEqual(requests, [4, 5]);
   pending[1].resolve(5);
   await run;
-  assert.deepEqual(frames, [4, 5, 4]);
+  assert.deepEqual(frames, [4]);
   await c.select(5);
-  assert.deepEqual(frames, [4, 5, 4, 5]);
+  assert.deepEqual(frames, [4, 5]);
   assert.deepEqual(requests, [4, 5]);
+});
+
+test("zoom reversals reject worse and equally distant LODs in both directions", async () => {
+  for (const [initial, obsolete, target] of [[5, 9, 6], [9, 5, 8], [5, 9, 7]]) {
+    const { c, requests, frames, pending } = geometryHarness();
+    const first = c.select(initial);
+    pending[0].resolve(initial);
+    await first;
+    const run = c.select(obsolete);
+    await c.select(target);
+    pending[1].resolve(obsolete);
+    await Promise.resolve();
+    assert.deepEqual(frames, [initial]);
+    assert.deepEqual(requests, [initial, obsolete, target]);
+    pending[2].resolve(target);
+    await run;
+    assert.deepEqual(frames, [initial, target]);
+  }
 });
 
 test("reselecting the active or rendered level does not start duplicate queries", async () => {
