@@ -129,7 +129,8 @@ function schedule() {
     const start = performance.now();
     const activeGeojson =
       $("mode").value === "original" ? original : (frame?.geojson ?? original);
-    const minimapGeojson = minimapFrame?.geojson ?? null;
+    // Until the coarse minimap level arrives, show the decoded source.
+    const minimapGeojson = minimapFrame?.geojson ?? original ?? null;
     const drawn = draw(state, activeGeojson, original);
     drawStats = drawn.stats;
     drawMinimap?.({ ...state, miniSize: 160 }, minimapGeojson);
