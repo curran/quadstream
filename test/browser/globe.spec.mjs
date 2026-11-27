@@ -166,11 +166,12 @@ test("mouse drag rotates without geometry queries; wheel zoom and keyboard work"
     .poll(async () => (await state(page)).scale)
     .toBeGreaterThan(b.scale);
   await expect(globe(page)).toHaveAttribute("data-interacting", "false");
+  const zoomed = await state(page);
   await globe(page).focus();
   await page.keyboard.down("ArrowRight");
   await expect
     .poll(async () => (await state(page)).rotation[0])
-    .toBeLessThan(b.rotation[0]);
+    .toBeLessThan(zoomed.rotation[0]);
   await page.keyboard.up("ArrowRight");
 });
 test("two consecutive pinches and one-two-one transitions preserve baseline and rotation", async ({
@@ -183,7 +184,7 @@ test("two consecutive pinches and one-two-one transitions preserve baseline and 
   await pointer(page, "pointerdown", 2, 500, 400);
   await pointer(page, "pointermove", 2, 600, 400);
   await waitScale(page, a.scale * 2);
-  expect((await state(page)).rotation).toEqual(a.rotation);
+  expect((await state(page)).rotation[2]).toBe(0);
   await pointer(page, "pointerup", 2, 600, 400);
   await pointer(page, "pointermove", 1, 400, 400);
   await pointer(page, "pointermove", 1, 420, 400);
@@ -650,7 +651,7 @@ test("the tree hides collapsed polygons at coarse levels and restores them at fu
   expect(await page.locator("#min-px").count()).toBe(0);
 });
 
-test("smooth navigation converges on the goal, then stops animating", async ({
+test("direct zoom bypasses smoothing, then reset converges", async ({
   page,
 }) => {
   await page.goto("/examples/globe/index.html?fixture=1&smooth=1");
@@ -660,12 +661,11 @@ test("smooth navigation converges on the goal, then stops animating", async ({
   await page.mouse.wheel(0, -600);
   await expect.poll(() => d("goalScale")).not.toBe(String(a.scale));
   const goal = Number(await d("goalScale"));
-  // Rendered zoom approaches the goal without jumping straight to it.
-  await expect
-    .poll(async () => (await state(page)).scale)
-    .toBeGreaterThan(a.scale);
-  await expect.poll(() => d("moving"), { timeout: 15000 }).toBe("false");
   near((await state(page)).scale, goal);
+  expect(await d("moving")).toBe("false");
+  await page.locator("#reset").click();
+  await expect.poll(() => d("moving"), { timeout: 15000 }).toBe("false");
+  near((await state(page)).scale, a.initial);
   await ready(page);
   const frames = await page.evaluate(
     () =>
@@ -926,4 +926,37 @@ test("mobile settings fit and diagnostics remain discoverable", async ({ page },
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(375);
   expect(bounds.y + bounds.height).toBeLessThanOrEqual(667);
   await page.screenshot({ path: testInfo.outputPath("settings-mobile.png") });
+});
+
+test("drag and wheel keep a geographic anchor under the cursor with smoothing enabled", async ({ page }) => {
+  await page.goto("/examples/globe/index.html?fixture=1&smooth=1");
+  await ready(page);
+  const box = await globe(page).boundingBox();
+  const x = box.x + box.width / 2 + 35;
+  const y = box.y + box.height / 2 + 25;
+  const anchor = await globe(page).evaluate((el, [x, y]) => {
+    const rect = el.getBoundingClientRect();
+    return globalThis.d3.geoOrthographic()
+      .rotate(JSON.parse(el.dataset.rotation))
+      .scale(Number(el.dataset.scale))
+      .translate([el.clientWidth / 2, el.clientHeight / 2])
+      .invert([x - rect.left, y - rect.top]);
+  }, [x, y]);
+  const error = (x, y) => globe(page).evaluate((el, { anchor, x, y }) => {
+    const rect = el.getBoundingClientRect();
+    const p = globalThis.d3.geoOrthographic()
+      .rotate(JSON.parse(el.dataset.rotation))
+      .scale(Number(el.dataset.scale))
+      .translate([el.clientWidth / 2, el.clientHeight / 2])(anchor);
+    return Math.hypot(p[0] + rect.left - x, p[1] + rect.top - y);
+  }, { anchor, x, y });
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 50, y + 30);
+  await expect.poll(() => error(x + 50, y + 30)).toBeLessThan(0.5);
+  await page.mouse.up();
+  await page.mouse.wheel(0, -300);
+  await expect.poll(async () => (await state(page)).scale).toBeGreaterThan((await state(page)).initial);
+  await expect.poll(() => error(x + 50, y + 30)).toBeLessThan(0.5);
+  expect((await state(page)).rotation[2]).toBe(0);
 });

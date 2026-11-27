@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { geoOrthographic } from "d3";
 import {
   createGlobeInteraction,
   attachGlobeInteraction,
@@ -44,112 +45,101 @@ function harness() {
     },
   };
 }
-test("single pointer rotates with original scale-dependent sensitivity", () => {
+const projection = (state) =>
+  geoOrthographic()
+    .rotate(state.rotation)
+    .scale(state.scale)
+    .translate(state.translation ?? [state.width / 2, state.height / 2]);
+const anchored = (state, point, x, y) => {
+  const p = projection(state)(point);
+  assert.ok(Math.hypot(p[0] - x, p[1] - y) < 0.001);
+  assert.equal(state.rotation[2], 0);
+};
+test("drag preserves the geographic point through diagonal movement", () => {
   const { g, state, active } = harness();
-  g.down(1, 10, 20);
-  g.move(1, 110, 70);
-  close(state.rotation[0], (100 * 58) / 280);
-  close(state.rotation[1], -20 - (50 * 58) / 280);
-  assert.equal(state.scale, 280);
+  const point = projection(state).invert([350, 340]);
+  g.down(1, 350, 340);
+  for (const [x, y] of [[370, 350], [410, 380], [330, 310], [350, 340]]) {
+    g.move(1, x, y);
+    anchored(state, point, x, y);
+  }
   g.up(1);
   assert.deepEqual(active, [true, false]);
   g.move(1, 200, 200);
   assert.equal(g.pointerCount, 0);
 });
-test("consecutive pinch-out and pinch-in use fresh on-screen scale", () => {
+test("pinch midpoint anchors and consecutive pinches use fresh scale", () => {
   const { g, state } = harness();
-  g.down(1, 0, 0);
-  g.down(2, 100, 0);
-  g.move(2, 200, 0);
+  const point = projection(state).invert([300, 300]);
+  g.down(1, 250, 300);
+  g.down(2, 350, 300);
+  g.move(2, 450, 300);
   close(state.scale, 560);
-  g.up(1);
+  anchored(state, point, 350, 300);
   g.up(2);
-  g.down(3, 0, 0);
-  g.down(4, 100, 0);
-  g.move(4, 150, 0);
-  close(state.scale, 840);
-  // The entire second gesture is relative to its initial scale (560)
-  // and distance (100), not the preceding move's scale (840).
-  g.move(4, 50, 0);
+  const next = projection(state).invert([250, 300]);
+  g.move(1, 250, 300);
+  anchored(state, next, 250, 300);
+  g.move(1, 270, 320);
+  anchored(state, next, 270, 320);
+  g.up(1);
+  g.down(3, 250, 300);
+  g.down(4, 350, 300);
+  g.move(4, 300, 300);
   close(state.scale, 280);
-  g.move(4, 100, 0);
-  close(state.scale, 560);
-  g.move(4, 75, 0);
-  close(state.scale, 420);
   g.up(3);
   g.up(4);
-  // A third gesture must now start from the last committed scale.
-  g.down(5, 0, 0);
-  g.down(6, 100, 0);
-  g.move(6, 200, 0);
-  close(state.scale, 840);
-  g.up(5);
-  g.up(6);
 });
-test("one-two-one transition preserves rotation and does not jump", () => {
+test("third pointer pauses and the remaining pair rebases", () => {
   const { g, state } = harness();
-  g.down(1, 10, 10);
-  g.move(1, 30, 10);
-  const r = state.rotation.slice();
-  g.down(2, 130, 10);
-  g.move(2, 230, 10);
-  assert.deepEqual(state.rotation, r);
-  close(state.scale, 560);
-  g.up(2);
-  g.move(1, 30, 10);
-  assert.deepEqual(state.rotation, r);
-  g.move(1, 40, 10);
-  close(state.rotation[0], r[0] + (10 * 58) / 560);
-});
-test("third pointer pauses and remaining pair rebases", () => {
-  const { g, state } = harness();
-  g.down(1, 0, 0);
-  g.down(2, 100, 0);
-  g.move(2, 200, 0);
-  close(state.scale, 560);
-  g.down(3, 300, 0);
-  g.move(2, 250, 0);
-  close(state.scale, 560);
+  g.down(1, 200, 300);
+  g.down(2, 300, 300);
+  g.down(3, 400, 300);
+  g.move(2, 350, 300);
+  close(state.scale, 280);
   g.up(1);
-  g.move(3, 300, 0);
+  g.move(3, 450, 300);
   close(state.scale, 560);
-  g.move(3, 350, 0);
-  close(state.scale, 1120);
 });
 test("coincident pointers establish first nonzero pinch baseline", () => {
   const { g, state } = harness();
-  g.down(1, 0, 0);
-  g.down(2, 0, 0);
-  g.move(2, 10, 0);
+  g.down(1, 300, 300);
+  g.down(2, 300, 300);
+  g.move(2, 310, 300);
   close(state.scale, 280);
-  g.move(2, 20, 0);
+  g.move(2, 320, 300);
   close(state.scale, 560);
-  assert.ok(Number.isFinite(state.scale));
 });
-test("pinch and wheel respect both original zoom bounds", () => {
+test("pinch and wheel retain zoom bounds", () => {
   const { g, state } = harness();
-  g.down(1, 0, 0);
-  g.down(2, 100, 0);
-  g.move(2, 10000, 0);
+  g.down(1, 250, 300);
+  g.down(2, 350, 300);
+  g.move(2, 10000, 300);
   close(state.scale, 17920);
-  g.move(2, 1, 0);
+  g.move(2, 251, 300);
   close(state.scale, 168);
   g.up(1);
   g.up(2);
-  g.wheel(-1e6);
+  g.wheel(-1e6, 300, 300);
   close(state.scale, 17920);
-  g.wheel(1e6);
+  g.wheel(1e6, 300, 300);
   close(state.scale, 168);
 });
-test("wheel is exponential, cancels earlier timers and does not end active drag", () => {
-  const h = harness(),
-    { g, state, active, timers } = h;
-  g.wheel(-100);
+test("wheel anchors through reversal, cancels timers and rebases active drag", () => {
+  const h = harness();
+  const { g, state, active, timers } = h;
+  const point = projection(state).invert([360, 320]);
+  g.wheel(-100, 360, 320);
   close(state.scale, 280 * Math.exp(0.15));
-  g.wheel(100);
+  anchored(state, point, 360, 320);
+  g.wheel(100, 360, 320);
   close(state.scale, 280);
+  anchored(state, point, 360, 320);
   assert.equal(timers.size, 1);
-  g.down(1, 0, 0);
+  g.down(1, 360, 320);
+  g.wheel(-100, 360, 320);
+  g.move(1, 370, 330);
+  anchored(state, point, 370, 330);
   h.flush();
   assert.deepEqual(active, [true]);
   g.up(1);
@@ -157,29 +147,35 @@ test("wheel is exponential, cancels earlier timers and does not end active drag"
   g.dispose();
   assert.equal(timers.size, 0);
 });
-test("resize preserves relative zoom and refreshes gesture sensitivity and pinch baseline", () => {
+test("resize preserves relative zoom and rebases the pointer anchor", () => {
   const { g, state } = harness();
-  g.down(1, 0, 0);
-  g.down(2, 100, 0);
-  g.move(2, 200, 0);
-  Object.assign(state, resizedView(state, 300, 500));
+  g.down(1, 300, 300);
+  Object.assign(state, resizedView(state, 500, 500));
   g.rebase();
-  close(state.scale, 260);
-  assert.deepEqual(state.translation, [150, 250]);
-  g.move(2, 200, 0);
-  close(state.scale, 260);
-  g.move(2, 300, 0);
-  close(state.scale, 390);
-  g.up(2);
-  g.move(1, 10, 0);
-  close(state.rotation[0], (10 * 29) / 390);
+  const point = projection(state).invert([300, 300]);
+  g.move(1, 310, 310);
+  anchored(state, point, 310, 310);
+  close(state.scale, 230);
 });
-test("listener binding handles cancel, lost capture and cleanup", () => {
+test("outside-globe input does not invent an anchor", () => {
+  const { g, state } = harness();
+  const rotation = [...state.rotation];
+  g.down(1, 0, 0);
+  g.move(1, 100, 100);
+  assert.deepEqual(state.rotation, rotation);
+  g.up(1);
+  g.wheel(-100, 0, 0);
+  assert.deepEqual(state.rotation, rotation);
+});
+test("listener binding converts client coordinates, handles cancel and cleanup", () => {
   const { g, state } = harness();
   class Canvas extends EventTarget {
     style = {};
     clientHeight = 600;
     ids = new Set();
+    getBoundingClientRect() {
+      return { left: 40, top: 50 };
+    }
     setPointerCapture(i) {
       this.ids.add(i);
     }
@@ -192,41 +188,23 @@ test("listener binding handles cancel, lost capture and cleanup", () => {
   }
   const canvas = new Canvas();
   const detach = attachGlobeInteraction(canvas, g);
-  const fire = (type, p = {}) => {
-    const e = Object.assign(new Event(type, { cancelable: true }), p);
-    canvas.dispatchEvent(e);
-    return e;
-  };
+  const fire = (type, p = {}) =>
+    canvas.dispatchEvent(Object.assign(new Event(type, { cancelable: true }), p));
+  const point = projection(state).invert([300, 300]);
   fire("pointerdown", {
-    pointerId: 1,
-    pointerType: "touch",
-    clientX: 0,
-    clientY: 0,
+    pointerId: 1, pointerType: "touch", clientX: 340, clientY: 350,
   });
-  fire("pointerdown", {
-    pointerId: 2,
-    pointerType: "touch",
-    clientX: 100,
-    clientY: 0,
-  });
-  fire("pointercancel", { pointerId: 2 });
-  fire("pointermove", { pointerId: 1, clientX: 10, clientY: 0 });
-  assert.ok(state.rotation[0] > 0);
+  fire("pointermove", { pointerId: 1, clientX: 360, clientY: 370 });
+  anchored(state, point, 320, 320);
+  fire("wheel", { deltaY: -100, deltaMode: 0, clientX: 360, clientY: 370 });
+  anchored(state, point, 320, 320);
+  fire("pointercancel", { pointerId: 1 });
   fire("lostpointercapture", { pointerId: 1 });
   assert.equal(g.pointerCount, 0);
   assert.equal(canvas.style.cursor, "grab");
-  assert.equal(fire("gesturestart").defaultPrevented, true);
-  assert.equal(
-    fire("wheel", { deltaY: 0, deltaMode: 0 }).defaultPrevented,
-    true,
-  );
+  assert.equal(fire("gesturestart"), false);
   detach();
-  fire("pointerdown", {
-    pointerId: 3,
-    pointerType: "touch",
-    clientX: 0,
-    clientY: 0,
-  });
+  fire("pointerdown", { pointerId: 3, pointerType: "touch", clientX: 340, clientY: 350 });
   assert.equal(g.pointerCount, 0);
   assert.equal(canvas.ids.size, 0);
 });

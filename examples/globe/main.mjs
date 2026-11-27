@@ -41,7 +41,6 @@ const NAV_KEY = "quadstream-globe-nav",
     smooth: true,
     response: 300,
     damping: 1,
-    pan: 1,
     zoom: 1,
     flyPan: 600,
     flyZoom: 1,
@@ -50,7 +49,6 @@ const NAV_KEY = "quadstream-globe-nav",
   NAV_SLIDERS = [
     ["response", "nav-response"],
     ["damping", "nav-damping"],
-    ["pan", "nav-pan"],
     ["zoom", "nav-zoom"],
     ["flyPan", "nav-fly-pan"],
     ["flyZoom", "nav-fly-zoom"],
@@ -339,10 +337,13 @@ function requestLevel() {
     void latest.select(level);
   }
 }
-function update(patch, { near = false } = {}) {
+function update(patch, { near = false, direct = false } = {}) {
   if ("interacting" in patch) state.interacting = patch.interacting;
   if (patch.rotation || patch.scale !== undefined) {
-    advanceCamera(); // advance to the event time before moving the goal
+    if (direct) {
+      camera.brake();
+      moving = false;
+    } else advanceCamera(); // advance to the event time before moving the goal
     const [lon, lat, roll] = patch.rotation ?? [];
     const z =
       patch.scale !== undefined
@@ -352,7 +353,7 @@ function update(patch, { near = false } = {}) {
       state.rotation = [...state.rotation.slice(0, 2), roll];
     if (near && lon !== undefined) camera.setGoalNear(lon, lat, z);
     else camera.setGoal({ lon, lat, z });
-    if (nav.smooth) {
+    if (nav.smooth && !direct) {
       if (!moving) {
         moving = true;
         lastTime = performance.now();
@@ -363,8 +364,14 @@ function update(patch, { near = false } = {}) {
   schedule();
 }
 const gesture = createGlobeInteraction({
-  getState: goalView,
-  update,
+  getState: () => state,
+  update: (patch) => update(patch, { direct: true }),
+  onStart: () => {
+    camera.brake();
+    moving = false;
+    syncState();
+    schedule();
+  },
   getSensitivity: () => nav,
   onActive: (v) => update({ interacting: v }),
 });
