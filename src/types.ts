@@ -76,6 +76,10 @@ export interface QueryResult {
   usedFallback: boolean;
   /** Spherical queries: arcs promoted to a finer level to keep features valid. */
   promotedArcs?: number;
+  /** Spherical queries with the "drop" policy: polygons hidden by the tree. */
+  hiddenPolygons?: number;
+  /** Spherical queries with the "drop" policy: closed rings (shells and holes) omitted. */
+  hiddenRings?: number;
   selectedFeatures: number;
   selectedVertices: number;
 }

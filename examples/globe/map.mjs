@@ -1,7 +1,6 @@
 // Adapted from VizHub rPa9vFJ0kEvpjaJn-280C (MIT). Geometry only.
 import { filterVisibleFeatures } from "./cull.mjs";
-import { createViewClipper, countVertices } from "./clip.mjs";
-import { dropSmallPolygons } from "./small.mjs";
+import { createViewClipper } from "./clip.mjs";
 
 const faceAxes = {
   "+X": [
@@ -78,7 +77,7 @@ function quadtreeGeometry(cells, level) {
 export function createGlobeRenderer(
   d3,
   ctx,
-  { cull = false, clip = false, minPx = 0 } = {},
+  { cull = false, clip = false } = {},
 ) {
   const projection = d3.geoOrthographic(),
     path = d3.geoPath(projection, ctx),
@@ -148,14 +147,6 @@ export function createGlobeRenderer(
       stats = res.stats;
     } else if (cull)
       target = filterVisibleFeatures(geojson, state, capCache, source);
-    const small = dropSmallPolygons(target, scale, state.minPx ?? minPx);
-    target = small.geojson;
-    if (stats)
-      stats = {
-        ...stats,
-        smallDropped: small.dropped,
-        vertices: small.dropped ? countVertices(target) : stats.vertices,
-      };
     if (target?.features?.length) {
       ctx.beginPath();
       path(target);

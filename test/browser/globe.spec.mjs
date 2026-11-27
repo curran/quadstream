@@ -612,3 +612,22 @@ test("live globe clips geometry when zoomed, reports stats, and ?clip=0 disables
   await expect(globe(page)).toHaveAttribute("data-draw-mode", "cull-only");
   await page.screenshot({ path: testInfo.outputPath("clip-off.png") });
 });
+test("the tree hides collapsed polygons at coarse levels and restores them at full detail", async ({
+  page,
+}) => {
+  const read = () =>
+    globe(page).evaluate((el) => ({
+      hidden: Number(el.dataset.hiddenPolygons),
+      vertices: Number(el.dataset.vertices),
+    }));
+  await page.goto("/examples/globe/index.html?atlas=110m");
+  await ready(page);
+  await manual(page, 4);
+  const coarse = await read();
+  expect(coarse.hidden).toBeGreaterThan(0);
+  await manual(page, 19);
+  const full = await read();
+  expect(full.hidden).toBe(0);
+  expect(coarse.vertices).toBeLessThan(full.vertices);
+  expect(await page.locator("#min-px").count()).toBe(0);
+});

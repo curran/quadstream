@@ -15,6 +15,20 @@ export interface ReconstructionResult {
   missing: boolean;
   valid: boolean;
   selectedVertices: number;
+  /** Closed rings omitted from the output (hidden or collapsed). */
+  hiddenRings: number;
+}
+export type CollapsedRingPolicy = "restore" | "drop";
+export interface ReconstructOptions {
+  /**
+   * A closed ring with fewer than 3 distinct selected vertices is either
+   * restored to its original vertices (default) or dropped: a hidden exterior
+   * drops its whole polygon, a hidden hole is filled. Topology anchors keep
+   * rings from collapsing in practice; `hiddenPaths` is what hides islands.
+   */
+  collapsed?: CollapsedRingPolicy;
+  /** Path indices that are omitted without being reconstructed. */
+  hiddenPaths?: ReadonlySet<number>;
 }
 export function buildArcTrees(
   arcs: readonly Arc[],
@@ -57,11 +71,28 @@ export function reconstructFeature(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _includeMissing = false,
   planarValidity = true,
+  options: ReconstructOptions = {},
 ): ReconstructionResult {
   let missing = false,
     selectedVertices = 0;
+  const dropCollapsed = options.collapsed === "drop";
+  const hidden = new Set<number>(options.hiddenPaths);
+  // Holes of a hidden exterior go with it, so they are never reconstructed.
+  const shellOf: number[] = [];
+  if (f.geometryType === "Polygon" || f.geometryType === "MultiPolygon")
+    for (const group of f.groups)
+      for (const p of group) {
+        shellOf[p] = group[0]!;
+        if (hidden.has(group[0]!)) hidden.add(p);
+      }
   const paths: Position[][] = [];
-  for (const path of f.paths) {
+  for (let pathIndex = 0; pathIndex < f.paths.length; pathIndex++) {
+    const path = f.paths[pathIndex]!;
+    if (hidden.has(pathIndex) || hidden.has(shellOf[pathIndex] ?? -1)) {
+      hidden.add(pathIndex);
+      paths.push([]);
+      continue;
+    }
     const coords: Position[] = [];
     let pathSelectedVertices = 0;
     for (const ref of path.arcs) {
@@ -90,6 +121,11 @@ export function reconstructFeature(
         coords.push(xy);
         pathSelectedVertices++;
       }
+    }
+    if (path.closed && dropCollapsed && distinctBelow3(coords)) {
+      hidden.add(pathIndex);
+      paths.push([]);
+      continue;
     }
     if (path.closed && distinctBelow3(coords)) {
       // Collapsed ring: restore every original vertex. Only this rare path
@@ -127,14 +163,16 @@ export function reconstructFeature(
     selectedVertices += pathSelectedVertices;
     paths.push(coords);
   }
-  const groups = f.groups.map((group) => group.map((i) => paths[i]!));
+  const groups = f.groups
+    .filter((group) => !hidden.has(group[0]!))
+    .map((group) => group.filter((i) => !hidden.has(i)).map((i) => paths[i]!));
   let geometry: Feature["geometry"];
   let valid = true;
   const checkPolygon = planarValidity ? validPolygon : () => true;
   switch (f.geometryType) {
     case "Polygon":
-      geometry = { type: "Polygon", coordinates: groups[0]! };
-      valid = checkPolygon(groups[0]!);
+      geometry = { type: "Polygon", coordinates: groups[0] ?? [] };
+      valid = !groups[0] || checkPolygon(groups[0]);
       break;
     case "MultiPolygon":
       geometry = { type: "MultiPolygon", coordinates: groups };
@@ -162,5 +200,6 @@ export function reconstructFeature(
     missing,
     valid,
     selectedVertices,
+    hiddenRings: hidden.size,
   };
 }

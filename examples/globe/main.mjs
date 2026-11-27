@@ -17,14 +17,6 @@ const $ = (id) => document.getElementById(id),
   miniCtx = miniCanvas?.getContext("2d");
 // ?clip=0 restores whole-feature culling only, for A/B comparison.
 const clipEnabled = new URLSearchParams(location.search).get("clip") !== "0";
-// ?minpx=N hides polygons smaller than N square pixels (0 shows everything).
-const minPxParam = Number(new URLSearchParams(location.search).get("minpx"));
-let minPx =
-  new URLSearchParams(location.search).has("minpx") &&
-  Number.isFinite(minPxParam) &&
-  minPxParam >= 0
-    ? minPxParam
-    : 1;
 const draw = createGlobeRenderer(globalThis.d3, ctx, {
   cull: true,
   clip: clipEnabled,
@@ -126,8 +118,8 @@ function diagnostics() {
     vertices: String(frame?.vertices ?? ""),
     drawnVertices: String(drawStats?.vertices ?? ""),
     drawMode: drawStats?.mode ?? "cull-only",
-    smallDropped: String(drawStats?.smallDropped ?? 0),
-    minPx: String(minPx),
+    hiddenPolygons: String(frame?.hiddenPolygons ?? 0),
+    hiddenRings: String(frame?.hiddenRings ?? 0),
     clipRebuilt: String(drawStats?.rebuilt ?? ""),
     sourceVertices: String(frame?.sourceVertices ?? ""),
     mode: $("mode").value,
@@ -148,7 +140,6 @@ function schedule() {
     const drawn = draw(
       {
         ...state,
-        minPx: $("mode").value === "original" ? 0 : minPx,
         showQuadtree: $("show-quadtree").checked,
         quadtreeLevel:
           $("mode").value === "original"
@@ -164,7 +155,6 @@ function schedule() {
       {
         ...state,
         miniSize: 160,
-        minPx: $("mode").value === "original" ? 0 : minPx,
       },
       minimapGeojson,
     );
@@ -370,12 +360,6 @@ $("level").addEventListener("input", () => {
   $("level-value").value = $("level").value;
   $("level-value").textContent = $("level").value;
   requestLevel();
-});
-$("min-px").value = minPx;
-$("min-px").addEventListener("input", () => {
-  const v = Number($("min-px").value);
-  minPx = Number.isFinite(v) && v >= 0 ? v : 0;
-  schedule();
 });
 $("show-quadtree").addEventListener("change", schedule);
 $("reset").addEventListener("click", reset);
