@@ -2,6 +2,10 @@ import { test, expect } from "@playwright/test";
 import { MIN_AUTO_LEVEL } from "../../examples/globe/lod.mjs";
 const url = "/examples/globe/index.html?fixture=1";
 const globe = (page) => page.locator("#globe");
+async function openSettings(page) {
+  if (await page.locator("#panel").isHidden())
+    await page.locator("#settings-toggle").click();
+}
 // Existing tests assert exact synchronous camera state, so they run with
 // smooth navigation off; the smoothing tests opt in with ?smooth=1.
 test.beforeEach(async ({ page }) => {
@@ -77,6 +81,7 @@ async function compareFullPixels(page, label) {
   await expect(globe(page)).toHaveAttribute("data-interacting", "false");
   const before = await state(page);
   expect(before.level).toBe(19);
+  await openSettings(page);
   await page.locator("#mode").selectOption("original");
   await expect(globe(page)).toHaveAttribute("data-mode", "original");
   // Keep the original raw RGBA buffer in the browser. PNG encoding/decoding
@@ -308,6 +313,7 @@ test("fractional target LOD values select partial BLG levels with auto detail", 
   expect(Math.abs(auto * 10 - Math.round(auto * 10))).toBeLessThan(1e-6);
   await expect(page.locator("#auto")).toHaveCount(0);
   await expect(page.locator("#level")).toBeEnabled();
+  await openSettings(page);
   await page.locator("#level").fill("7.3");
   await ready(page);
   await expect(page.locator("#level")).toHaveValue("7.3");
@@ -376,6 +382,8 @@ test("failed local file surfaces an error and fixture reload recovers", async ({
 }) => {
   await page.goto(url);
   await ready(page);
+  await openSettings(page);
+  await page.locator("#data-source summary").click();
   await page.locator("#file").setInputFiles({
     name: "bad.json",
     mimeType: "application/json",
@@ -861,4 +869,61 @@ test("slow geometry keeps refining during sustained zoom and reversal", async ({
   expect(await data(page, "renderedLevel")).toBe(
     await data(page, "targetLevel"),
   );
+});
+
+test("settings disclosure preserves controls and globe layout", async ({ page }, testInfo) => {
+  await page.goto(url);
+  await ready(page);
+  const panel = page.locator("#panel");
+  const toggle = page.locator("#settings-toggle");
+  await expect(panel).toBeHidden();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  const bounds = await globe(page).boundingBox();
+  await openSettings(page);
+  await expect(panel).toBeVisible();
+  expect((await panel.boundingBox()).width).toBeLessThanOrEqual(360);
+  expect(await globe(page).boundingBox()).toEqual(bounds);
+  await page.locator("#show-quadtree").check();
+  await page.locator("#navigation summary").click();
+  await page.locator("#data-source summary").click();
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await expect(toggle).toBeFocused();
+  await openSettings(page);
+  await expect(page.locator("#show-quadtree")).toBeChecked();
+  await expect(page.locator("#navigation")).toHaveAttribute("open", "");
+  await expect(page.locator("#data-source")).toHaveAttribute("open", "");
+  await page.screenshot({ path: testInfo.outputPath("settings-desktop.png") });
+  await page.mouse.click(800, 400);
+  await expect(panel).toBeHidden();
+  await page.locator("#minimap-toggle").click();
+  await expect(page.locator("#minimap")).toBeHidden();
+  await expect(page.locator("#minimap-toggle")).toHaveAttribute("aria-pressed", "false");
+  await page.locator("#minimap-toggle").click();
+  await expect(page.locator("#minimap")).toBeVisible();
+  await page.locator("#reset").click();
+});
+
+test("mobile settings fit and diagnostics remain discoverable", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto(url);
+  await ready(page);
+  await openSettings(page);
+  await page.locator("#data-source summary").click();
+  await page.locator("#file").setInputFiles({
+    name: "invalid.json",
+    mimeType: "application/json",
+    buffer: Buffer.from("invalid"),
+  });
+  await expect(page.locator("#status")).toHaveAttribute("data-phase", "error");
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#panel")).toBeHidden();
+  await expect(page.locator("#status-indicator")).toHaveAttribute("data-kind", "error");
+  await page.locator("#status-indicator").click();
+  await expect(page.locator("#diagnostics-section")).toHaveAttribute("open", "");
+  await expect(page.locator("#retry")).toBeVisible();
+  const bounds = await page.locator("#panel").boundingBox();
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(375);
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(667);
+  await page.screenshot({ path: testInfo.outputPath("settings-mobile.png") });
 });

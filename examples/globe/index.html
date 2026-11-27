@@ -39,20 +39,91 @@
         outline: 2px solid #c4b5fd;
         outline-offset: -3px;
       }
-      #panel {
+      [hidden] {
+        display: none !important;
+      }
+      #controls {
         position: absolute;
-        top: 10px;
-        left: 10px;
-        width: calc(100% - 20px);
-        max-width: calc(100% - 20px);
-        background: #17172ce8;
-        padding: 10px;
-        border: 1px solid #5c5c96;
-        border-radius: 8px;
+        top: 12px;
+        left: 12px;
+        max-width: calc(100% - 24px);
+      }
+      #toolbar {
         display: flex;
         flex-wrap: wrap;
+        gap: 6px;
         align-items: center;
-        gap: 8px;
+      }
+      #toolbar button {
+        min-height: 36px;
+      }
+      #settings-toggle::after {
+        content: " ▾";
+      }
+      #settings-toggle[aria-expanded="true"]::after {
+        content: " ▴";
+      }
+      #panel {
+        width: 340px;
+        max-width: 100%;
+        max-height: calc(100dvh - 72px);
+        overflow: auto;
+        overscroll-behavior: contain;
+        margin-top: 8px;
+        background: #17172cf5;
+        padding: 12px;
+        border: 1px solid #5c5c96;
+        border-radius: 8px;
+      }
+      #panel details + details {
+        border-top: 1px solid #41405e;
+        margin-top: 10px;
+        padding-top: 10px;
+      }
+      #panel summary {
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        padding: 4px 0;
+      }
+      #panel details > :not(summary) {
+        margin-top: 8px;
+      }
+      #panel label {
+        min-width: 0;
+      }
+      #panel output {
+        min-width: 3ch;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      #file::file-selector-button {
+        font: inherit;
+        color: inherit;
+        background: #29294a;
+        border: 1px solid #8f86d9;
+        border-radius: 4px;
+        padding: 6px;
+      }
+      #status-indicator[data-kind="warning"] {
+        color: #ffd18a;
+      }
+      #status-indicator[data-kind="error"] {
+        color: #ffaaaa;
+      }
+      @media (max-width: 480px) {
+        #minimap {
+          max-width: 100px;
+          max-height: 100px;
+        }
+        #panel {
+          max-height: calc(100dvh - 116px);
+        }
+        #panel button,
+        #panel select,
+        #panel summary {
+          min-height: 36px;
+        }
       }
       button,
       select,
@@ -115,7 +186,7 @@
         margin: 6px 0 0;
       }
       #file {
-        max-width: 180px;
+        max-width: 100%;
       }
       #minimap {
         position: absolute;
@@ -142,132 +213,156 @@
       height="160"
       aria-label="Globe culling minimap"
     ></canvas>
-    <section id="panel" aria-label="Globe controls">
-      <label
-        >Geometry
-        <select id="mode">
-          <option value="quadstream">Quadstream</option>
-          <option value="original">Original</option>
-        </select></label
-      >
-      <div id="lod-row" class="lod-row">
-        <label for="level">LOD</label>
-        <input
-          id="level"
-          type="range"
-          min="0"
-          max="19"
-          step="0.1"
-          value="4"
-        /><output id="level-value">4</output>
-      </div>
-      <details id="navigation">
-        <summary>Navigation</summary>
-        <label
-          ><input id="smooth" type="checkbox" checked /> Smooth
-          navigation</label
+    <div id="controls">
+      <div id="toolbar" role="group" aria-label="Globe viewer actions">
+        <button
+          id="settings-toggle"
+          aria-expanded="false"
+          aria-controls="panel"
         >
-        <div class="lod-row">
-          <label for="nav-response">Response (ms)</label>
+          ⚙ Settings
+        </button>
+        <button id="reset" title="Reset view">Reset view</button>
+        <button id="minimap-toggle" aria-controls="minimap" aria-pressed="true">
+          Minimap
+        </button>
+        <button
+          id="status-indicator"
+          aria-label="View rendering status"
+          hidden
+        ></button>
+      </div>
+      <section id="panel" aria-label="Globe settings" hidden>
+        <details id="rendering" open>
+          <summary>Rendering</summary>
+        <label
+          >Geometry
+          <select id="mode">
+            <option value="quadstream">Quadstream</option>
+            <option value="original">Original</option>
+          </select></label
+        >
+        <div id="lod-row" class="lod-row">
+          <label for="level">LOD</label>
           <input
-            id="nav-response"
+            id="level"
             type="range"
-            min="50"
-            max="1500"
-            step="10"
-            value="300"
-          /><output id="nav-response-value">300</output>
-        </div>
-        <div class="lod-row">
-          <label for="nav-damping">Damping</label>
-          <input
-            id="nav-damping"
-            type="range"
-            min="0.1"
-            max="2"
-            step="0.05"
-            value="1"
-          /><output id="nav-damping-value">1</output>
-        </div>
-        <div class="lod-row">
-          <label for="nav-pan">Pan speed</label>
-          <input
-            id="nav-pan"
-            type="range"
-            min="0.25"
-            max="3"
-            step="0.05"
-            value="1"
-          /><output id="nav-pan-value">1</output>
-        </div>
-        <div class="lod-row">
-          <label for="nav-zoom">Zoom speed</label>
-          <input
-            id="nav-zoom"
-            type="range"
-            min="0.25"
-            max="3"
-            step="0.05"
-            value="1"
-          /><output id="nav-zoom-value">1</output>
-        </div>
-        <div class="lod-row">
-          <label for="nav-fly-pan">Fly pan (px/s)</label>
-          <input
-            id="nav-fly-pan"
-            type="range"
-            min="50"
-            max="2000"
-            step="10"
-            value="600"
-          /><output id="nav-fly-pan-value">600</output>
-        </div>
-        <div class="lod-row">
-          <label for="nav-fly-zoom">Fly zoom (oct/s)</label>
-          <input
-            id="nav-fly-zoom"
-            type="range"
-            min="0.1"
-            max="4"
+            min="0"
+            max="19"
             step="0.1"
-            value="1"
-          /><output id="nav-fly-zoom-value">1</output>
+            value="4"
+          /><output id="level-value">4</output>
         </div>
-        <div class="lod-row">
-          <label for="nav-drag">Drag (1/s)</label>
-          <input
-            id="nav-drag"
-            type="range"
-            min="0.5"
-            max="15"
-            step="0.1"
-            value="5"
-          /><output id="nav-drag-value">5</output>
-        </div>
-        <p class="hint">
-          Fly: arrows thrust, D in, C out, Space brake, R reset
-        </p>
-      </details>
-      <label><input id="show-quadtree" type="checkbox" /> Show quadtree</label>
-      <button id="reset">Reset view</button><button id="retry">Retry</button>
-      <label
-        >Atlas
-        <select id="atlas">
-          <option value="110m">110m</option>
-          <option value="50m" selected>50m</option>
-          <option value="fixture">Test fixture</option>
-        </select></label
-      >
-      <label
-        >Local file
-        <input id="file" type="file" accept=".json,.geojson,.topojson"
-      /></label>
-      <p id="status" role="status" aria-live="polite">Loading geometry…</p>
-      <details>
-        <summary>Diagnostics</summary>
-        <pre id="diagnostics"></pre>
-      </details>
-    </section>
+        <label><input id="show-quadtree" type="checkbox" /> Show quadtree</label>
+        </details>
+        <details id="data-source">
+          <summary>Data source</summary>
+          <label>Atlas
+            <select id="atlas">
+              <option value="110m">110m</option>
+              <option value="50m" selected>50m</option>
+              <option value="fixture">Test fixture</option>
+            </select>
+          </label>
+          <label for="file">Local file</label>
+          <input id="file" type="file" accept=".json,.geojson,.topojson" />
+        </details>
+        <details id="navigation">
+          <summary>Navigation</summary>
+          <label
+            ><input id="smooth" type="checkbox" checked /> Smooth
+            navigation</label
+          >
+          <div class="lod-row">
+            <label for="nav-response">Response (ms)</label>
+            <input
+              id="nav-response"
+              type="range"
+              min="50"
+              max="1500"
+              step="10"
+              value="300"
+            /><output id="nav-response-value">300</output>
+          </div>
+          <div class="lod-row">
+            <label for="nav-damping">Damping</label>
+            <input
+              id="nav-damping"
+              type="range"
+              min="0.1"
+              max="2"
+              step="0.05"
+              value="1"
+            /><output id="nav-damping-value">1</output>
+          </div>
+          <div class="lod-row">
+            <label for="nav-pan">Pan speed</label>
+            <input
+              id="nav-pan"
+              type="range"
+              min="0.25"
+              max="3"
+              step="0.05"
+              value="1"
+            /><output id="nav-pan-value">1</output>
+          </div>
+          <div class="lod-row">
+            <label for="nav-zoom">Zoom speed</label>
+            <input
+              id="nav-zoom"
+              type="range"
+              min="0.25"
+              max="3"
+              step="0.05"
+              value="1"
+            /><output id="nav-zoom-value">1</output>
+          </div>
+          <div class="lod-row">
+            <label for="nav-fly-pan">Fly pan (px/s)</label>
+            <input
+              id="nav-fly-pan"
+              type="range"
+              min="50"
+              max="2000"
+              step="10"
+              value="600"
+            /><output id="nav-fly-pan-value">600</output>
+          </div>
+          <div class="lod-row">
+            <label for="nav-fly-zoom">Fly zoom (oct/s)</label>
+            <input
+              id="nav-fly-zoom"
+              type="range"
+              min="0.1"
+              max="4"
+              step="0.1"
+              value="1"
+            /><output id="nav-fly-zoom-value">1</output>
+          </div>
+          <div class="lod-row">
+            <label for="nav-drag">Drag (1/s)</label>
+            <input
+              id="nav-drag"
+              type="range"
+              min="0.5"
+              max="15"
+              step="0.1"
+              value="5"
+            /><output id="nav-drag-value">5</output>
+          </div>
+          <p class="hint">
+            Fly: arrows thrust, D in, C out, Space brake, R reset
+          </p>
+        </details>
+        <details id="diagnostics-section">
+          <summary>Diagnostics</summary>
+          <p id="status" role="status" aria-live="polite">Loading geometry…</p>
+          <button id="retry" hidden>Retry</button>
+          <pre id="diagnostics"></pre>
+        </details>
+      </section>
+    </div>
+    <script type="module" src="./controls.mjs"></script>
     <script src="../../node_modules/d3/dist/d3.min.js"></script>
     <script src="../../node_modules/topojson-client/dist/topojson-client.min.js"></script>
     <script type="module" src="./main.mjs"></script>
