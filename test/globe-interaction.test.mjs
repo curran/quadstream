@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   createGlobeInteraction,
   attachGlobeInteraction,
+  createKeyboardControls,
+  attachKeyboardControls,
   resizedView,
 } from "../examples/globe/interaction.mjs";
 import { levelForScale, createLatestGeometry } from "../examples/globe/lod.mjs";
@@ -378,4 +380,86 @@ test("globe queries quantize levels to tenths for cache reuse", async () => {
   assert.equal(b.cached, true);
   assert.equal(b.level, 7.3);
   assert.equal(a.vertices, b.vertices);
+});
+
+function keyHarness() {
+  const events = [];
+  const k = createKeyboardControls({
+    onThrust: (t) => events.push(["thrust", t.x, t.y, t.z]),
+    onBrake: () => events.push(["brake"]),
+    onReset: () => events.push(["reset"]),
+  });
+  return { k, events };
+}
+test("keyboard thrust vectors combine, cancel and ignore OS key repeat", () => {
+  const { k, events } = keyHarness();
+  k.keydown("KeyD");
+  k.keydown("KeyD", { repeat: true });
+  k.keydown("ArrowRight");
+  k.keydown("ArrowUp");
+  assert.deepEqual(events, [
+    ["thrust", 0, 0, 1],
+    ["thrust", 1, 0, 1],
+    ["thrust", 1, 1, 1],
+  ]);
+  events.length = 0;
+  k.keydown("ArrowLeft");
+  assert.deepEqual(events, [["thrust", 0, 1, 1]]);
+  k.keyup("ArrowLeft");
+  k.keyup("ArrowRight");
+  k.keyup("ArrowRight");
+  k.keydown("KeyC");
+  assert.deepEqual(k.thrust(), { x: 0, y: 1, z: 0 });
+});
+test("space brakes and clears held keys; R resets once; unknown keys pass through", () => {
+  const { k, events } = keyHarness();
+  k.keydown("ArrowDown");
+  events.length = 0;
+  assert.equal(k.keydown("Space"), true);
+  k.keyup("ArrowDown");
+  k.keydown("KeyR");
+  k.keydown("KeyR", { repeat: true });
+  assert.deepEqual(events, [["brake"], ["reset"]]);
+  assert.equal(k.keydown("KeyQ"), false);
+});
+test("window listeners prevent scrolling, ignore editable targets and modifiers, and clear on blur", () => {
+  const { k, events } = keyHarness();
+  const handlers = {},
+    docHandlers = {},
+    win = {
+      document: {
+        hidden: false,
+        addEventListener: (t, f) => (docHandlers[t] = f),
+        removeEventListener: (t) => delete docHandlers[t],
+      },
+      addEventListener: (t, f) => (handlers[t] = f),
+      removeEventListener: (t) => delete handlers[t],
+    };
+  const detach = attachKeyboardControls(win, k);
+  const ev = (code, extra = {}) => ({
+    code,
+    target: null,
+    preventDefault() {
+      this.prevented = true;
+    },
+    ...extra,
+  });
+  const arrow = ev("ArrowLeft");
+  handlers.keydown(arrow);
+  assert.equal(arrow.prevented, true);
+  const slider = ev("ArrowRight", { target: { closest: () => ({}) } });
+  handlers.keydown(slider);
+  assert.equal(slider.prevented, undefined);
+  const reload = ev("KeyR", { ctrlKey: true });
+  handlers.keydown(reload);
+  assert.equal(reload.prevented, undefined);
+  assert.equal(events.filter((e) => e[0] === "reset").length, 0);
+  handlers.blur();
+  assert.deepEqual(events.at(-1), ["thrust", 0, 0, 0]);
+  handlers.keydown(ev("KeyD"));
+  win.document.hidden = true;
+  docHandlers.visibilitychange();
+  assert.deepEqual(events.at(-1), ["thrust", 0, 0, 0]);
+  detach();
+  assert.deepEqual(Object.keys(handlers), []);
 });

@@ -4,6 +4,7 @@ export function createGlobeInteraction({
   getState,
   update,
   onActive = () => {},
+  getSensitivity = () => ({ pan: 1, zoom: 1 }),
   setTimer = setTimeout,
   clearTimer = clearTimeout,
 }) {
@@ -44,7 +45,9 @@ export function createGlobeInteraction({
       const state = getState();
       if (pointers.size === 1) {
         const k =
-          (58 * (Math.min(state.width, state.height) / 600)) /
+          (58 *
+            getSensitivity().pan *
+            (Math.min(state.width, state.height) / 600)) /
           (state.scale || 1);
         update({
           rotation: [
@@ -60,7 +63,10 @@ export function createGlobeInteraction({
           return;
         }
         update({
-          scale: clamp((pinch.scale * d) / pinch.distance, state.initialScale),
+          scale: clamp(
+            pinch.scale * (d / pinch.distance) ** getSensitivity().zoom,
+            state.initialScale,
+          ),
         });
       }
     },
@@ -75,7 +81,10 @@ export function createGlobeInteraction({
       wheeling = true;
       sync();
       update({
-        scale: clamp(s.scale * Math.exp(-delta * 0.0015), s.initialScale),
+        scale: clamp(
+          s.scale * Math.exp(-delta * 0.0015 * getSensitivity().zoom),
+          s.initialScale,
+        ),
       });
       if (wheelTimer !== null) clearTimer(wheelTimer);
       wheelTimer = setTimer(() => {
@@ -172,5 +181,93 @@ export function resizedView(state, width, height, margin = 20) {
     initialScale,
     scale: initialScale * ratio,
     translation: [width / 2, height / 2],
+  };
+}
+// Keyboard flight: a pressed-key set (independent of OS key repeat) maps to a
+// thrust vector. Arrows thrust the camera right/left/north/south, D flies in,
+// C flies out, Space brakes and R resets.
+export function createKeyboardControls({
+  onThrust,
+  onBrake = () => {},
+  onReset = () => {},
+}) {
+  const pressed = new Set();
+  let last = "0,0,0";
+  const thrust = () => ({
+    x: Number(pressed.has("ArrowRight")) - Number(pressed.has("ArrowLeft")),
+    y: Number(pressed.has("ArrowUp")) - Number(pressed.has("ArrowDown")),
+    z: Number(pressed.has("KeyD")) - Number(pressed.has("KeyC")),
+  });
+  const emit = () => {
+    const t = thrust(),
+      key = [t.x, t.y, t.z].join();
+    if (key === last) return;
+    last = key;
+    onThrust(t);
+  };
+  const isThrustKey = (c) =>
+    [
+      "ArrowRight",
+      "ArrowLeft",
+      "ArrowUp",
+      "ArrowDown",
+      "KeyD",
+      "KeyC",
+    ].includes(c);
+  return {
+    keydown(code, { repeat = false } = {}) {
+      if (isThrustKey(code)) {
+        pressed.add(code);
+        emit();
+        return true;
+      }
+      if (code === "Space") {
+        if (!repeat) {
+          pressed.clear();
+          last = "0,0,0";
+          onBrake();
+        }
+        return true;
+      }
+      if (code === "KeyR") {
+        if (!repeat) onReset();
+        return true;
+      }
+      return false;
+    },
+    keyup(code) {
+      if (pressed.delete(code)) emit();
+    },
+    clear() {
+      pressed.clear();
+      emit();
+    },
+    thrust,
+  };
+}
+const editable = (t, code) =>
+  Boolean(t?.closest?.("input, select, textarea, [contenteditable]")) ||
+  (code === "Space" && Boolean(t?.closest?.("button")));
+export function attachKeyboardControls(win, controls) {
+  const down = (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || editable(e.target, e.code))
+      return;
+    if (controls.keydown(e.code, e)) e.preventDefault();
+  };
+  const up = (e) => controls.keyup(e.code);
+  const clear = () => controls.clear();
+  const visibility = () => {
+    if (win.document.hidden) controls.clear();
+  };
+  win.addEventListener("keydown", down);
+  win.addEventListener("keyup", up);
+  win.addEventListener("blur", clear);
+  win.document.addEventListener("visibilitychange", visibility);
+  return () => {
+    win.removeEventListener("keydown", down);
+    win.removeEventListener("keyup", up);
+    win.removeEventListener("blur", clear);
+    win.document.removeEventListener("visibilitychange", visibility);
+    controls.clear();
   };
 }
