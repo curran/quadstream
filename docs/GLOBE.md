@@ -40,9 +40,14 @@ TopoJSON must contain the named countries object.
 
 ## Smooth navigation and keyboard flight
 
-Pointer, wheel and pinch input directly updates the rendered camera to preserve
-the anchor. Animated reset uses an analytical damped spring (`physics.mjs`, `springStep`), so motion is
-frame-rate independent. Longitude is unbounded, zoom is springed in log space,
+Pointer, wheel and pinch input solves a north-up camera goal that preserves
+the geographic anchor. The rendered camera follows that goal with an analytical
+damped spring (`physics.mjs`, `springStep`), also used for animated reset. Motion
+is frame-rate independent; velocity is retained across goal changes and release.
+Transient cursor lag is intentional when smoothing is on; the settled view
+matches the anchor wherever reachable. With smoothing off, updates snap to the
+goal. New grabs use the rendered view; continuing gestures and wheel increments
+use the goal so pending motion is not lost. Longitude is unbounded, zoom is springed in log space,
 and LOD follows the rendered scale. One rAF scheduler runs only while the camera
 is moving. While moving, land is resampled more coarsely without its outline,
 and a slow draw is followed by a skipped one; the settled frame is always full
@@ -56,7 +61,7 @@ Keyboard flight uses force-based dynamics, `v' = a - γv`, integrated exactly
 by `stepThrust` (drag must be > 0): ←/→/↑/↓ thrust laterally (north-up, diagonals
 normalized, speed in screen pixels/s so it feels the same at any zoom), D/C
 fly in/out in log-zoom, Space brakes, R resets. Held keys are tracked in a set
-and cleared on blur or hidden page; inputs and sliders are ignored. Direct pointer input brakes the camera and reclaims its channels. Sliders: pan speed, zoom speed
+and cleared on blur or hidden page; inputs and sliders are ignored. Pointer input reclaims the channels it changes while retaining velocity. Sliders: pan speed, zoom speed
 (octaves/s) and drag; acceleration is derived as `γ·v∞`.
 
 ## Regional boundary layers
