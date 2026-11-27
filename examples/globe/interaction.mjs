@@ -3,6 +3,7 @@
 import { anchorRotation, globeAnchor } from "./north-up.mjs";
 export function createGlobeInteraction({
   getState,
+  getRenderedState = getState,
   update,
   onActive = () => {},
   getSensitivity = () => ({ zoom: 1 }),
@@ -32,8 +33,8 @@ export function createGlobeInteraction({
     const [a, b] = pointers.values();
     return [(a.x + b.x) / 2, (a.y + b.y) / 2];
   };
-  const rebase = () => {
-    const state = getState();
+  // Rebase continuing gestures against intent, not a lagging render.
+  const rebase = (state = getState()) => {
     dragAnchor = null;
     pinch = null;
     if (pointers.size === 1) {
@@ -50,9 +51,11 @@ export function createGlobeInteraction({
   return {
     down(id, x, y) {
       if (pointers.has(id)) return;
-      if (!pointers.size) onStart();
+      const first = !pointers.size;
+      if (first) onStart();
       pointers.set(id, { x, y });
-      rebase();
+      // A new grab selects the geographic point actually under the pointer.
+      rebase(first ? getRenderedState() : getState());
       sync();
     },
     move(id, x, y) {
@@ -92,9 +95,11 @@ export function createGlobeInteraction({
     },
     wheel(delta, x, y) {
       if (!Number.isFinite(delta)) return;
-      if (!pointers.size && !wheeling) onStart();
+      const first = !pointers.size && !wheeling;
+      if (first) onStart();
       const s = getState();
-      const anchor = globeAnchor(s, x, y);
+      // Start from the visible point; subsequent events accumulate on the goal.
+      const anchor = globeAnchor(first ? getRenderedState() : s, x, y);
       wheeling = true;
       sync();
       const scale = clamp(
