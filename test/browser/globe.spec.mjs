@@ -1,6 +1,13 @@
 import { test, expect } from "@playwright/test";
 const url = "/examples/globe/index.html?fixture=1";
 const globe = (page) => page.locator("#globe");
+// Existing tests assert exact synchronous camera state, so they run with
+// smooth navigation off; the smoothing tests opt in with ?smooth=1.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("quadstream-globe-nav", '{"smooth":false}'),
+  );
+});
 // The status changes when the worker responds, before the next animation
 // frame publishes the canvas diagnostics. Wait for the actual requested frame.
 const ready = async (page) => {
@@ -112,34 +119,16 @@ async function compareFullPixels(page, label) {
     await original.dispose();
   }
 }
-// Drive the same public keyboard and wheel event handlers as a user.
-// Each camera starts from Reset; wheel zoom is exponential and bounded.
+// Each camera starts from Reset; the debug hook jumps the camera without
+// animation so views are exact regardless of smoothing.
 async function atlasView(page, rotation, zoom) {
   await page.locator("#reset").click();
-  await globe(page).evaluate(
-    (el, { rotation, zoom }) => {
-      const press = (key, n) => {
-        for (let i = 0; i < n; i++)
-          el.dispatchEvent(
-            new KeyboardEvent("keydown", {
-              key,
-              bubbles: true,
-              cancelable: true,
-            }),
-          );
-      };
-      const x = rotation[0] / 12,
-        y = (rotation[1] + 20) / 12;
-      press(x < 0 ? "ArrowLeft" : "ArrowRight", Math.abs(x));
-      press(y < 0 ? "ArrowUp" : "ArrowDown", Math.abs(y));
-      if (zoom !== 1)
-        el.dispatchEvent(
-          new WheelEvent("wheel", {
-            deltaY: -Math.log(zoom) / 0.0015,
-            bubbles: true,
-            cancelable: true,
-          }),
-        );
+  await page.evaluate(
+    ({ rotation, zoom }) => {
+      const initial = Number(
+        document.querySelector("#globe").dataset.initialScale,
+      );
+      globalThis.globeDebug.setView({ rotation, scale: initial * zoom });
     },
     { rotation, zoom },
   );
@@ -172,10 +161,11 @@ test("mouse drag rotates without geometry queries; wheel zoom and keyboard work"
     .toBeGreaterThan(b.scale);
   await expect(globe(page)).toHaveAttribute("data-interacting", "false");
   await globe(page).focus();
-  await page.keyboard.press("ArrowRight");
+  await page.keyboard.down("ArrowRight");
   await expect
     .poll(async () => (await state(page)).rotation[0])
-    .toBeGreaterThan(b.rotation[0]);
+    .toBeLessThan(b.rotation[0]);
+  await page.keyboard.up("ArrowRight");
 });
 test("two consecutive pinches and one-two-one transitions preserve baseline and rotation", async ({
   page,
@@ -593,7 +583,7 @@ test("live globe clips geometry when zoomed, reports stats, and ?clip=0 disables
   }));
   expect(clipped.drawn).toBeGreaterThan(0);
   expect(clipped.drawn).toBeLessThan(clipped.source);
-  await page.locator("details summary").click();
+  await page.getByText("Diagnostics", { exact: true }).click();
   await expect(page.locator("#diagnostics")).toContainText(
     /Drawn: \d+ \/ \d+ vertices/,
   );
@@ -611,4 +601,139 @@ test("live globe clips geometry when zoomed, reports stats, and ?clip=0 disables
   await zoomIn();
   await expect(globe(page)).toHaveAttribute("data-draw-mode", "cull-only");
   await page.screenshot({ path: testInfo.outputPath("clip-off.png") });
+});
+test("the tree hides collapsed polygons at coarse levels and restores them at full detail", async ({
+  page,
+}) => {
+  const read = () =>
+    globe(page).evaluate((el) => ({
+      hidden: Number(el.dataset.hiddenPolygons),
+      vertices: Number(el.dataset.vertices),
+    }));
+  await page.goto("/examples/globe/index.html?atlas=110m");
+  await ready(page);
+  await manual(page, 4);
+  const coarse = await read();
+  expect(coarse.hidden).toBeGreaterThan(0);
+  await manual(page, 19);
+  const full = await read();
+  expect(full.hidden).toBe(0);
+  expect(coarse.vertices).toBeLessThan(full.vertices);
+  expect(await page.locator("#min-px").count()).toBe(0);
+});
+
+test("smooth navigation converges on the goal, then stops animating", async ({
+  page,
+}) => {
+  await page.goto("/examples/globe/index.html?fixture=1&smooth=1");
+  await ready(page);
+  const d = (key) => globe(page).evaluate((el, k) => el.dataset[k], key);
+  const a = await state(page);
+  await page.mouse.wheel(0, -600);
+  await expect.poll(() => d("goalScale")).not.toBe(String(a.scale));
+  const goal = Number(await d("goalScale"));
+  // Rendered zoom approaches the goal without jumping straight to it.
+  await expect
+    .poll(async () => (await state(page)).scale)
+    .toBeGreaterThan(a.scale);
+  await expect.poll(() => d("moving"), { timeout: 5000 }).toBe("false");
+  near((await state(page)).scale, goal);
+  const frames = await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        let n = 0;
+        const count = () => n++;
+        const orig = window.requestAnimationFrame;
+        window.requestAnimationFrame = (f) => (count(), orig(f));
+        setTimeout(() => resolve(n), 300);
+      }),
+  );
+  expect(frames).toBe(0);
+});
+
+const flightUrl = "/examples/globe/index.html?fixture=1&smooth=1";
+const data = (page, key) => globe(page).evaluate((el, k) => el.dataset[k], key);
+test("holding D accelerates zoom in, release coasts, C flies back out, then frames stop", async ({
+  page,
+}) => {
+  await page.goto(flightUrl);
+  await ready(page);
+  const a = await state(page);
+  await page.keyboard.down("KeyD");
+  await page.waitForTimeout(400);
+  const mid = await state(page);
+  expect(mid.scale).toBeGreaterThan(a.scale);
+  await page.keyboard.up("KeyD");
+  const released = (await state(page)).scale;
+  // Viscous drag carries the camera a little further after release.
+  await expect
+    .poll(async () => (await state(page)).scale, { timeout: 3000 })
+    .toBeGreaterThan(released);
+  await expect
+    .poll(() => data(page, "thrusting"), { timeout: 8000 })
+    .toBe("false");
+  await expect.poll(() => data(page, "moving")).toBe("false");
+  const settled = (await state(page)).scale;
+  await page.keyboard.down("KeyC");
+  await page.waitForTimeout(600);
+  await page.keyboard.up("KeyC");
+  expect((await state(page)).scale).toBeLessThan(settled);
+  await expect
+    .poll(() => data(page, "moving"), { timeout: 8000 })
+    .toBe("false");
+  const frames = await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        let n = 0;
+        const raf = window.requestAnimationFrame;
+        window.requestAnimationFrame = (f) => (n++, raf(f));
+        setTimeout(() => resolve(n), 300);
+      }),
+  );
+  expect(frames).toBe(0);
+});
+test("arrow thrust moves camera, space brakes, blur releases keys, R resets", async ({
+  page,
+}) => {
+  await page.goto(flightUrl);
+  await ready(page);
+  const a = await state(page);
+  await page.keyboard.down("ArrowUp");
+  await page.waitForTimeout(300);
+  expect((await state(page)).rotation[1]).toBeLessThan(a.rotation[1]);
+  await page.keyboard.press("Space");
+  await expect
+    .poll(() => data(page, "moving"), { timeout: 3000 })
+    .toBe("false");
+  const stopped = (await state(page)).rotation[1];
+  await page.waitForTimeout(200);
+  expect((await state(page)).rotation[1]).toBe(stopped);
+  await page.keyboard.down("ArrowLeft");
+  await page.waitForTimeout(150);
+  await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+  await expect
+    .poll(() => data(page, "thrusting"), { timeout: 8000 })
+    .toBe("false");
+  await page.keyboard.up("ArrowLeft");
+  await page.keyboard.press("KeyR");
+  await expect
+    .poll(() => data(page, "moving"), { timeout: 8000 })
+    .toBe("false");
+  const r = await state(page);
+  near(r.rotation[1], -20);
+  near(r.scale, r.initial);
+});
+test("holding D traverses LOD without a request storm", async ({ page }) => {
+  await page.goto(flightUrl);
+  await ready(page);
+  const before = (await state(page)).requests;
+  await page.keyboard.down("KeyD");
+  await page.waitForTimeout(1200);
+  await page.keyboard.up("KeyD");
+  await expect
+    .poll(() => data(page, "moving"), { timeout: 8000 })
+    .toBe("false");
+  const s = await state(page);
+  // Quantized to 0.1 level steps: requests are bounded by the level range.
+  expect(s.requests - before).toBeLessThan(200);
 });

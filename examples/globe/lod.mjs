@@ -1,10 +1,20 @@
 // Provisional scale thresholds, not a measured projected-error guarantee.
 export const MIN_AUTO_LEVEL = 4,
   MAX_LEVEL = 19;
+// Auto LOD follows level = MIN_AUTO_LEVEL + log2(scale / BASE_SCALE).
+export const BASE_SCALE = 120;
+export const levelScale = (level) => BASE_SCALE * 2 ** (level - MIN_AUTO_LEVEL);
+export const scaleLevel = (scale) =>
+  MIN_AUTO_LEVEL + Math.log2(scale / BASE_SCALE);
 export function levelForScale(
   scale,
   previous,
-  { min = MIN_AUTO_LEVEL, max = MAX_LEVEL, base = 120, hysteresis = 0.15 } = {},
+  {
+    min = MIN_AUTO_LEVEL,
+    max = MAX_LEVEL,
+    base = BASE_SCALE,
+    hysteresis = 0.15,
+  } = {},
 ) {
   if (!Number.isFinite(scale) || scale <= 0)
     throw new Error("Invalid projection scale");

@@ -1,8 +1,11 @@
 import {
   createGlobeInteraction,
   attachGlobeInteraction,
+  createKeyboardControls,
+  attachKeyboardControls,
   resizedView,
 } from "./interaction.mjs";
+import { createCamera } from "./physics.mjs";
 import { quantizeAutoLevel, createLatestGeometry } from "./lod.mjs";
 import { createGlobeRenderer } from "./map.mjs";
 import { createMinimapRenderer } from "./minimap.mjs";
@@ -17,14 +20,6 @@ const $ = (id) => document.getElementById(id),
   miniCtx = miniCanvas?.getContext("2d");
 // ?clip=0 restores whole-feature culling only, for A/B comparison.
 const clipEnabled = new URLSearchParams(location.search).get("clip") !== "0";
-// ?minpx=N hides polygons smaller than N square pixels (0 shows everything).
-const minPxParam = Number(new URLSearchParams(location.search).get("minpx"));
-let minPx =
-  new URLSearchParams(location.search).has("minpx") &&
-  Number.isFinite(minPxParam) &&
-  minPxParam >= 0
-    ? minPxParam
-    : 1;
 const draw = createGlobeRenderer(globalThis.d3, ctx, {
   cull: true,
   clip: clipEnabled,
@@ -37,6 +32,54 @@ const state = {
   interacting: false,
   ...resizedView({}, canvas.clientWidth, canvas.clientHeight),
 };
+const NAV_KEY = "quadstream-globe-nav",
+  NAV_DEFAULTS = {
+    smooth: true,
+    response: 300,
+    damping: 1,
+    pan: 1,
+    zoom: 1,
+    flyPan: 600,
+    flyZoom: 1,
+    drag: 5,
+  },
+  NAV_SLIDERS = [
+    ["response", "nav-response"],
+    ["damping", "nav-damping"],
+    ["pan", "nav-pan"],
+    ["zoom", "nav-zoom"],
+    ["flyPan", "nav-fly-pan"],
+    ["flyZoom", "nav-fly-zoom"],
+    ["drag", "nav-drag"],
+  ];
+const nav = (() => {
+  let stored = {};
+  try {
+    stored = JSON.parse(localStorage.getItem(NAV_KEY) ?? "{}") ?? {};
+  } catch (e) {
+    void e;
+  }
+  const params = new URLSearchParams(location.search),
+    reduced = globalThis.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+  const merged = {
+    ...NAV_DEFAULTS,
+    ...(reduced ? { smooth: false } : {}),
+    ...stored,
+  };
+  // ?smooth=0 / ?smooth=1 overrides the stored preference for A/B and tests.
+  if (params.has("smooth")) merged.smooth = params.get("smooth") !== "0";
+  return merged;
+})();
+const reducedMotion = Boolean(
+  globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
+);
+const camera = createCamera({
+  limits: { zMin: Math.log(0.6), zMax: Math.log(64) },
+  responseMs: nav.response,
+  damping: nav.damping,
+});
 let original,
   minimapFrame,
   frame,
@@ -118,6 +161,10 @@ function diagnostics() {
   Object.assign(canvas.dataset, {
     rotation: JSON.stringify(state.rotation),
     scale: String(state.scale),
+    moving: String(moving),
+    goalScale: String(goalView(false).scale),
+    goalRotation: JSON.stringify(goalView(false).rotation),
+    thrusting: String(camera.thrusting),
     initialScale: String(state.initialScale),
     interacting: String(state.interacting),
     requests: String(requests),
@@ -126,17 +173,77 @@ function diagnostics() {
     vertices: String(frame?.vertices ?? ""),
     drawnVertices: String(drawStats?.vertices ?? ""),
     drawMode: drawStats?.mode ?? "cull-only",
-    smallDropped: String(drawStats?.smallDropped ?? 0),
-    minPx: String(minPx),
+    hiddenPolygons: String(frame?.hiddenPolygons ?? 0),
+    hiddenRings: String(frame?.hiddenRings ?? 0),
     clipRebuilt: String(drawStats?.rebuilt ?? ""),
     sourceVertices: String(frame?.sourceVertices ?? ""),
     mode: $("mode").value,
   });
 }
+// Single frame scheduler: at most one rAF is outstanding, each frame advances
+// the camera (if moving) and draws once; idle and clean means no frames.
+let moving = false,
+  lastTime = 0;
+// Keyboard flight keeps continuous control under reduced motion but has no
+// acceleration ramp or coasting.
+function applyTuning() {
+  camera.setTuning({
+    pan: nav.flyPan,
+    zoom: nav.flyZoom * Math.LN2,
+    drag: nav.drag,
+    instant: reducedMotion || !nav.smooth,
+  });
+}
+applyTuning();
+camera.setGoal({ lat: state.rotation[1] });
+camera.snap();
+function goalView(advance = true) {
+  // Thrust-owned channels track the rendered camera, so bring it up to date.
+  if (advance) advanceCamera();
+  return {
+    ...state,
+    rotation: [camera.goal[0], camera.goal[1], state.rotation[2]],
+    scale: state.initialScale * Math.exp(camera.goal[2]),
+  };
+}
+function syncState() {
+  const scale = state.initialScale * Math.exp(camera.pos[2]),
+    scaleChanged = scale !== state.scale;
+  state.rotation = [camera.pos[0], camera.pos[1], state.rotation[2]];
+  state.scale = scale;
+  // LOD follows the rendered camera, never the goal.
+  if (scaleChanged) requestLevel();
+}
+function advanceCamera() {
+  if (!moving) return;
+  const now = performance.now();
+  camera.advance(Math.max(0, now - lastTime) / 1000);
+  lastTime = now;
+  const degPerPx = 180 / Math.PI / state.scale;
+  if (
+    camera.isSettled({
+      angle: 0.2 * degPerPx,
+      angleVel: degPerPx,
+      zoom: 0.2 / state.scale,
+      zoomVel: 1 / state.scale,
+    })
+  ) {
+    camera.snap();
+    moving = false;
+  }
+  syncState();
+}
 function schedule() {
   if (raf || disposed) return;
   raf = requestAnimationFrame(() => {
     raf = 0;
+    advanceCamera();
+    render();
+    if (moving) schedule();
+  });
+}
+function render() {
+  {
     const start = performance.now();
     const activeGeojson =
       ready && $("mode").value === "original"
@@ -148,7 +255,8 @@ function schedule() {
     const drawn = draw(
       {
         ...state,
-        minPx: $("mode").value === "original" ? 0 : minPx,
+        // Cheap path (no glow) while the camera is moving or being driven.
+        interacting: state.interacting || moving,
         showQuadtree: $("show-quadtree").checked,
         quadtreeLevel:
           $("mode").value === "original"
@@ -164,13 +272,12 @@ function schedule() {
       {
         ...state,
         miniSize: 160,
-        minPx: $("mode").value === "original" ? 0 : minPx,
       },
       minimapGeojson,
     );
     frameMs = performance.now() - start;
     diagnostics();
-  });
+  }
 }
 function requestLevel() {
   if (!ready || !latest || $("mode").value === "original") return;
@@ -185,14 +292,33 @@ function requestLevel() {
     void latest.select(level);
   }
 }
-function update(patch) {
-  Object.assign(state, patch);
+function update(patch, { near = false } = {}) {
+  if ("interacting" in patch) state.interacting = patch.interacting;
+  if (patch.rotation || patch.scale !== undefined) {
+    advanceCamera(); // advance to the event time before moving the goal
+    const [lon, lat, roll] = patch.rotation ?? [];
+    const z =
+      patch.scale !== undefined
+        ? Math.log(patch.scale / state.initialScale)
+        : undefined;
+    if (roll !== undefined)
+      state.rotation = [...state.rotation.slice(0, 2), roll];
+    if (near && lon !== undefined) camera.setGoalNear(lon, lat, z);
+    else camera.setGoal({ lon, lat, z });
+    if (nav.smooth) {
+      if (!moving) {
+        moving = true;
+        lastTime = performance.now();
+      }
+    } else camera.snap();
+    syncState();
+  }
   schedule();
-  if ("scale" in patch) requestLevel();
 }
 const gesture = createGlobeInteraction({
-  getState: () => state,
+  getState: goalView,
   update,
+  getSensitivity: () => nav,
   onActive: (v) => update({ interacting: v }),
 });
 const detach = attachGlobeInteraction(canvas, gesture);
@@ -202,6 +328,7 @@ function resize() {
     dpr = window.devicePixelRatio || 1;
   if (!width || !height) return;
   Object.assign(state, resizedView(state, width, height), { dpr });
+  camera.setInitialScale(state.initialScale);
   canvas.width = Math.max(1, Math.round(width * dpr));
   canvas.height = Math.max(1, Math.round(height * dpr));
   if (miniCanvas) {
@@ -216,31 +343,52 @@ const observer = new ResizeObserver(resize);
 observer.observe(canvas);
 resize();
 function reset() {
-  update({ rotation: [0, -20, 0], scale: state.initialScale });
+  update({ rotation: [0, -20, 0], scale: state.initialScale }, { near: true });
   gesture.rebase();
 }
 canvas.addEventListener("keydown", (e) => {
-  const directions = {
-    ArrowLeft: [-12, 0],
-    ArrowRight: [12, 0],
-    ArrowUp: [0, -12],
-    ArrowDown: [0, 12],
-  };
-  if (directions[e.key]) {
-    e.preventDefault();
-    const [x, y] = directions[e.key];
-    update({
-      rotation: [
-        state.rotation[0] + x,
-        state.rotation[1] + y,
-        state.rotation[2],
-      ],
-    });
-  } else if (["+", "=", "-"].includes(e.key)) {
+  if (["+", "=", "-"].includes(e.key)) {
     e.preventDefault();
     gesture.wheel(e.key === "-" ? 120 : -120);
   }
 });
+function startMoving() {
+  if (!moving) {
+    moving = true;
+    lastTime = performance.now();
+  }
+  schedule();
+}
+const keyboard = createKeyboardControls({
+  onThrust(thrust) {
+    advanceCamera(); // advance to the event time before changing thrust
+    camera.setThrust(thrust);
+    startMoving();
+  },
+  onBrake() {
+    camera.brake();
+    moving = false;
+    syncState();
+    schedule();
+  },
+  onReset: reset,
+});
+const detachKeyboard = attachKeyboardControls(window, keyboard);
+// Deterministic hook for browser tests: jump the camera without animation.
+globalThis.globeDebug = {
+  setView({ rotation, scale }) {
+    camera.brake();
+    moving = false;
+    camera.setGoal({
+      lon: rotation[0],
+      lat: rotation[1],
+      z: Math.log(scale / state.initialScale),
+    });
+    camera.snap();
+    syncState();
+    schedule();
+  },
+};
 function error(e) {
   setStatus("Geometry error: " + (e.message ?? e), "error");
   schedule();
@@ -371,12 +519,33 @@ $("level").addEventListener("input", () => {
   $("level-value").textContent = $("level").value;
   requestLevel();
 });
-$("min-px").value = minPx;
-$("min-px").addEventListener("input", () => {
-  const v = Number($("min-px").value);
-  minPx = Number.isFinite(v) && v >= 0 ? v : 0;
+function applyNav() {
+  nav.smooth = $("smooth").checked;
+  for (const [key, id] of NAV_SLIDERS) {
+    nav[key] = Number($(id).value);
+    $(id + "-value").textContent = $(id).value;
+  }
+  camera.setParams({ responseMs: nav.response, damping: nav.damping });
+  applyTuning();
+  if (!nav.smooth && moving && !camera.thrusting) {
+    camera.snap();
+    moving = false;
+    syncState();
+  }
+  try {
+    localStorage.setItem(NAV_KEY, JSON.stringify(nav));
+  } catch (e) {
+    void e;
+  }
   schedule();
-});
+}
+$("smooth").checked = nav.smooth;
+for (const [key, id] of NAV_SLIDERS) {
+  $(id).value = nav[key];
+  $(id + "-value").textContent = String(nav[key]);
+  $(id).addEventListener("input", applyNav);
+}
+$("smooth").addEventListener("change", applyNav);
 $("show-quadtree").addEventListener("change", schedule);
 $("reset").addEventListener("click", reset);
 $("retry").addEventListener("click", () => void init());
@@ -408,6 +577,7 @@ window.addEventListener(
     latest?.dispose();
     client?.dispose();
     detach();
+    detachKeyboard();
     observer.disconnect();
     if (raf) cancelAnimationFrame(raf);
   },

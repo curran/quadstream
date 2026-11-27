@@ -227,15 +227,15 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
   const reasons = [
     ...new Set(groups.filter((g) => g.error).map((g) => g.error)),
   ].slice(0, 4);
-  function cacheHit(level) {
-    if (!cache.has(level)) return null;
-    const hit = cache.get(level);
-    cache.delete(level);
-    cache.set(level, hit);
+  function cacheHit(key) {
+    if (!cache.has(key)) return null;
+    const hit = cache.get(key);
+    cache.delete(key);
+    cache.set(key, hit);
     return { ...hit, cached: true, queryMs: 0 };
   }
-  function saveFrame(level, frame) {
-    cache.set(level, frame);
+  function saveFrame(key, frame) {
+    cache.set(key, frame);
     if (cache.size > 48) cache.delete(cache.keys().next().value);
     return frame;
   }
@@ -247,6 +247,14 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
           geometry: removeDegenerateRings(feature.geometry),
         }));
   }
+  // Source-fallback features have no tree: they stay at full detail.
+  function applyFallback(g, out) {
+    for (const i of g.indices)
+      out[i] = {
+        ...features[i],
+        geometry: removeDegenerateRings(features[i].geometry),
+      };
+  }
   function applyGroup(g, selected, level, out, stats) {
     const compatible =
       (selected.valid && level < maxLevel - 1) ||
@@ -256,6 +264,8 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
     if (!selected.valid) stats.validatorInvalidGroups++;
     if (!compatible) stats.invalidGroups++;
     stats.effectiveLevels.push(level);
+    stats.hiddenPolygons += selected.hiddenPolygons ?? 0;
+    stats.hiddenRings += selected.hiddenRings ?? 0;
     for (let j = 0; j < g.indices.length; j++) {
       const i = g.indices[j];
       out[i] = {
@@ -276,6 +286,8 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
       vertices: vertexCount(geojson),
       buildMs,
       queryMs: clock() - start,
+      hiddenPolygons: stats.hiddenPolygons,
+      hiddenRings: stats.hiddenRings,
       fallbackGroups: stats.fallbackGroups,
       invalidGroups: stats.invalidGroups,
       validatorInvalidGroups: stats.validatorInvalidGroups,
@@ -293,19 +305,28 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
     const hit = cacheHit(level);
     if (hit) return hit;
     const start = clock(),
-      out = prepareOut(level),
       stats = {
+        hiddenPolygons: 0,
+        hiddenRings: 0,
         fallbackGroups: 0,
         invalidGroups: 0,
         validatorInvalidGroups: 0,
         effectiveLevels: [],
-      };
+      },
+      out = prepareOut(level);
     for (const g of groups) {
       if (!g.engine) {
         stats.fallbackGroups++;
+        if (level < maxLevel - 1) applyFallback(g, out);
         continue;
       }
-      applyGroup(g, g.engine.query({ level }), level, out, stats);
+      applyGroup(
+        g,
+        g.engine.query({ level, collapsedRingPolicy: "drop" }),
+        level,
+        out,
+        stats,
+      );
     }
     return finalize(level, start, out, stats);
   }
@@ -320,20 +341,24 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
     if (hit) return hit;
     if (shouldAbort?.()) return null;
     const start = clock(),
-      out = prepareOut(level),
       stats = {
+        hiddenPolygons: 0,
+        hiddenRings: 0,
         fallbackGroups: 0,
         invalidGroups: 0,
         validatorInvalidGroups: 0,
         effectiveLevels: [],
-      };
+      },
+      out = prepareOut(level);
     for (const g of groups) {
       if (!g.engine) {
         stats.fallbackGroups++;
+        if (level < maxLevel - 1) applyFallback(g, out);
         continue;
       }
       const selected = await g.engine.queryInterruptible({
         level,
+        collapsedRingPolicy: "drop",
         shouldAbort,
         yieldTurn,
         sliceMs,

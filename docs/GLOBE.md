@@ -164,8 +164,18 @@ repair promotes arcs.
 
 ## Tiny polygons and repaired source rings
 
-- **Min polygon size** (`?minpx=N`, default 1, `#min-px` input): the renderer
-  skips polygons whose projected area is below N px². Original mode is unaffected.
+- **Tree-native islands** (`collapsedRingPolicy: "drop"`): a polygon is shown
+  at level L only when its ring has at least 3 distinct vertices activated by
+  the sparse quadtree (the third-smallest vertex activation level, cached per
+  ring as `ringActivation`). There is no pixel threshold. Visibility is decided
+  at the nominal level before validity repair and is frozen: arc promotion
+  improves visible polygons but never resurrects hidden ones, and hidden
+  polygons are never reconstructed, packed, transferred, clipped or drawn. A
+  hole is hidden with its exterior, and a hole and the matching enclave share
+  vertex ids, so they appear together. Features without a tree (source
+  fallback) are not hidden. Frames report `hiddenPolygons` and `hiddenRings`
+  (`data-hidden-polygons`). Original mode is unaffected. This is a
+  representability rule, not a size rule: see `plans/TREE_NATIVE_ISLANDS.md`.
 - **Self-crossing source rings** (e.g. 110m Sudan) used to force a full-detail
   source fallback. `examples/globe/repair.mjs` now cuts the loops so the feature
   simplifies normally. See `plans/UNSIMPLIFIED_GEOMETRY.md`.

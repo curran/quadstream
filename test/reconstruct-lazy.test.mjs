@@ -245,3 +245,37 @@ test("collapsed closed paths are restored from original arc vertices, forward an
     );
   }
 });
+
+test("collapsed rings are dropped when the policy says so, holes follow a hidden exterior", () => {
+  const vertices = [
+    { x: 0, y: 0 },
+    { x: 4, y: 0 },
+    { x: 4, y: 4 },
+    { x: 0, y: 4 },
+  ];
+  const arcs = [{ vertexIds: [0, 1, 2, 3, 0] }, { vertexIds: [0, 3, 2, 1, 0] }];
+  const trees = [buildBlgTree([0, 5, 5, 5, 0]), buildBlgTree([0, 5, 5, 5, 0])];
+  const lookup = (id) => [vertices[id].x, vertices[id].y];
+  const f = {
+    id: "f",
+    properties: {},
+    geometryType: "Polygon",
+    paths: [
+      { arcs: [1], closed: true },
+      { arcs: [2], closed: true },
+    ],
+    groups: [[0, 1]],
+  };
+  const args = [f, arcs, trees, 0, lookup, false, false];
+  assert.equal(reconstructFeature(...args).selectedVertices, 10);
+  const dropped = reconstructFeature(...args, { collapsed: "drop" });
+  assert.deepEqual(dropped.feature.geometry.coordinates, []);
+  assert.equal(dropped.hiddenRings, 2);
+  assert.equal(dropped.selectedVertices, 0);
+  const hole = reconstructFeature(...args, { hiddenPaths: new Set([1]) });
+  assert.equal(hole.feature.geometry.coordinates.length, 1);
+  assert.equal(hole.hiddenRings, 1);
+  const shell = reconstructFeature(...args, { hiddenPaths: new Set([0]) });
+  assert.deepEqual(shell.feature.geometry.coordinates, []);
+  assert.equal(shell.selectedVertices, 0);
+});

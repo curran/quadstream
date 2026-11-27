@@ -1,6 +1,11 @@
 import { buildTopologyWithPolicy } from "./topology.js";
 import { decodeTopoJSON } from "./adapters.js";
-import { buildArcTrees, reconstructFeature } from "./reconstruct.js";
+import {
+  buildArcTrees,
+  reconstructFeature,
+  type CollapsedRingPolicy,
+} from "./reconstruct.js";
+import { stableBlgRandom } from "./blg.js";
 import { signedArea } from "./geometry.js";
 import {
   canonicalLonLat,
@@ -164,11 +169,36 @@ export function importSphericalTopoJSON(
 }
 export interface SphericalQueryOptions {
   level?: number;
+  /**
+   * "restore" (default) keeps every polygon. "drop" hides each polygon (and
+   * hole) whose ring has fewer than 3 distinct quadtree-activated vertices at
+   * the query level: the sparse quadtree is the single authority on which
+   * polygons are representable at a level.
+   */
+  collapsedRingPolicy?: CollapsedRingPolicy;
 }
 export interface SphericalInterruptOptions extends SphericalQueryOptions {
   shouldAbort?: () => boolean;
   yieldTurn?: () => Promise<void>;
   sliceMs?: number;
+}
+type Run = ReturnType<typeof reconstructFeature>;
+/** Per feature: path indices hidden at the nominal level, and the signature of each visible polygon. */
+interface Visibility {
+  hidden: (Set<number> | undefined)[];
+  signatures: SphericalPolygonSignature[][];
+  hiddenPolygons: number;
+}
+const ACTIVATION_EPSILON = 1e-9;
+/**
+ * Level at which a vertex becomes selected in its arc's BLG tree. Selection at
+ * level L is `level <= floor(L)` or, for the next level, `random >= 1 - frac`,
+ * i.e. L >= level - random: a stable per-vertex threshold, so selections nest.
+ */
+function activationLevel(level: number, random: number): number {
+  return level === 0
+    ? 0
+    : level - random + (random === 1 ? ACTIVATION_EPSILON : 0);
 }
 /** Geographic in-memory dataset. No planar viewport index or v1 partition serialization. */
 export class SphericalQuadstreamDataset {
@@ -176,6 +206,12 @@ export class SphericalQuadstreamDataset {
   readonly topology: Topology;
   readonly priorities: SphericalPriorities;
   readonly arcTrees: readonly BlgTree[];
+  /**
+   * Per feature and path: the lowest level at which the closed ring has 3
+   * distinct vertices activated by the sparse quadtree (the third-smallest
+   * vertex activation level), or Infinity when it never does. Open paths are 0.
+   */
+  readonly ringActivation: readonly (readonly number[])[];
   private readonly source: FeatureCollection;
   private readonly signatures: SphericalPolygonSignature[][];
   constructor(
@@ -197,8 +233,69 @@ export class SphericalQuadstreamDataset {
       this.priorities.levelByVertexId,
       this.topology.vertices.map((v) => v.critical),
     );
+    this.ringActivation = this.topology.features.map((f) =>
+      f.paths.map((path) => this.pathActivation(path)),
+    );
   }
-  query(options: SphericalQueryOptions = {}): QueryResult {
+  private pathActivation(path: Topology["features"][number]["paths"][number]) {
+    if (!path.closed) return 0;
+    // Arc endpoints are always selected (topology anchors, three per closed
+    // ring), so they cannot define visibility: use each vertex's own priority.
+    const best = new Map<number, number>();
+    for (const ref of path.arcs)
+      for (const id of this.topology.arcs[Math.abs(ref) - 1]!.vertexIds) {
+        const a = activationLevel(
+          this.priorities.levelByVertexId[id]!,
+          this.topology.vertices[id]!.critical ? 1 : stableBlgRandom(id),
+        );
+        if (a < (best.get(id) ?? Infinity)) best.set(id, a);
+      }
+    let m1 = Infinity,
+      m2 = Infinity,
+      m3 = Infinity;
+    for (const a of best.values()) {
+      if (a < m1) [m1, m2, m3] = [a, m1, m2];
+      else if (a < m2) [m2, m3] = [a, m2];
+      else if (a < m3) m3 = a;
+    }
+    return m3;
+  }
+  /** Nominal-level polygon eligibility, frozen before validity repair. */
+  private visibility(level: number): Visibility {
+    let hiddenPolygons = 0;
+    const hidden: (Set<number> | undefined)[] = [],
+      signatures: SphericalPolygonSignature[][] = [];
+    this.topology.features.forEach((f, i) => {
+      const act = this.ringActivation[i]!,
+        source = this.signatures[i]!;
+      let set: Set<number> | undefined;
+      const sigs: SphericalPolygonSignature[] = [];
+      if (f.geometryType === "Polygon" || f.geometryType === "MultiPolygon")
+        f.groups.forEach((group, j) => {
+          if (act[group[0]!]! > level) {
+            (set ??= new Set()).add(group[0]!);
+            hiddenPolygons++;
+            return;
+          }
+          const shown = group.filter((p) => act[p]! <= level);
+          for (const p of group)
+            if (!shown.includes(p)) (set ??= new Set()).add(p);
+          const sig = source[j]!;
+          sigs.push(
+            shown.length === group.length
+              ? sig
+              : {
+                  chart: sig.chart,
+                  signs: sig.signs.filter((_, k) => act[group[k]!]! <= level),
+                },
+          );
+        });
+      hidden.push(set);
+      signatures.push(sigs);
+    });
+    return { hidden, signatures, hiddenPolygons };
+  }
+  private session(options: SphericalQueryOptions) {
     if ("bounds" in options || "validate" in options)
       throw new Error("Spherical queries require global validated retrieval");
     const level = options.level ?? this.priorities.maxLevel - 1;
@@ -208,68 +305,83 @@ export class SphericalQuadstreamDataset {
       level >= this.priorities.maxLevel
     )
       throw new Error("Invalid spherical query level");
-    const lookup = (id: number): Position | undefined => {
-      const v = this.topology.vertices[id];
-      return v ? [v.x, v.y] : undefined;
-    };
-    const full = this.priorities.maxLevel - 1;
-    const promoted = new Map<number, number>();
+    const drop = options.collapsedRingPolicy === "drop",
+      vis = drop ? this.visibility(level) : undefined,
+      lookup = (id: number): Position | undefined => {
+        const v = this.topology.vertices[id];
+        return v ? [v.x, v.y] : undefined;
+      },
+      full = this.priorities.maxLevel - 1,
+      promoted = new Map<number, number>(),
+      levelOf = (arcId: number) => promoted.get(arcId) ?? level,
+      check = (i: number, r: Run) => {
+        const p = polygons(r.feature.geometry).filter((g) => g.length),
+          s = vis ? vis.signatures[i]! : this.signatures[i]!;
+        return (
+          !r.missing &&
+          p.length === s.length &&
+          p.every((g, j) => validSphericalPolygon(g, s[j]!)) &&
+          lines(r.feature.geometry).every(validGreatCirclePath)
+        );
+      },
+      run = (f: Topology["features"][number], i: number) =>
+        reconstructFeature(
+          f,
+          this.topology.arcs,
+          this.arcTrees,
+          levelOf,
+          lookup,
+          false,
+          false,
+          drop ? { collapsed: "drop", hiddenPaths: vis!.hidden[i] } : undefined,
+        );
+    return { level, full, promoted, levelOf, check, run, vis };
+  }
+  /** Promote every arc of an invalid feature to the next integer level; arcs are shared, so neighbours see the same selection. */
+  private promote(
+    s: ReturnType<SphericalQuadstreamDataset["session"]>,
+    ok: boolean[],
+  ): Set<number> {
+    const touched = new Set<number>();
+    ok.forEach((good, i) => {
+      if (good) return;
+      for (const path of this.topology.features[i]!.paths)
+        for (const ref of path.arcs) {
+          const id = Math.abs(ref) - 1,
+            cur = s.levelOf(id);
+          if (cur >= s.full) continue;
+          s.promoted.set(id, Math.min(s.full, Math.floor(cur) + 1));
+          touched.add(id);
+        }
+    });
+    return touched;
+  }
+  private affected(i: number, touched: Set<number>) {
+    return this.topology.features[i]!.paths.some((p) =>
+      p.arcs.some((r) => touched.has(Math.abs(r) - 1)),
+    );
+  }
+  query(options: SphericalQueryOptions = {}): QueryResult {
+    const s = this.session(options);
+    const results = this.topology.features.map(s.run);
+    const ok = results.map((r, i) => s.check(i, r));
     let promotedArcs = 0;
-    const levelOf = (arcId: number) => promoted.get(arcId) ?? level;
-    const check = (i: number, r: ReturnType<typeof reconstructFeature>) => {
-      const p = polygons(r.feature.geometry),
-        s = this.signatures[i]!;
-      return (
-        !r.missing &&
-        p.length === s.length &&
-        p.every((g, j) => validSphericalPolygon(g, s[j]!)) &&
-        lines(r.feature.geometry).every(validGreatCirclePath)
-      );
-    };
-    const run = (f: Topology["features"][number]) =>
-      reconstructFeature(
-        f,
-        this.topology.arcs,
-        this.arcTrees,
-        levelOf,
-        lookup,
-        false,
-        false,
-      );
-    const results = this.topology.features.map(run);
-    const ok = results.map((r, i) => check(i, r));
-    // Repair: promote every arc of an invalid feature to the next integer
-    // level. Arcs are shared, so neighbours always see the same selection.
-    for (let pass = 0; pass <= full + 1; pass++) {
-      const touched = new Set<number>();
-      ok.forEach((good, i) => {
-        if (good) return;
-        for (const path of this.topology.features[i]!.paths)
-          for (const ref of path.arcs) {
-            const id = Math.abs(ref) - 1,
-              cur = levelOf(id);
-            if (cur >= full) continue;
-            promoted.set(id, Math.min(full, Math.floor(cur) + 1));
-            touched.add(id);
-          }
-      });
+    for (let pass = 0; pass <= s.full + 1; pass++) {
+      const touched = this.promote(s, ok);
       if (!touched.size) break;
-      promotedArcs = promoted.size;
+      promotedArcs = s.promoted.size;
       this.topology.features.forEach((f, i) => {
-        if (
-          f.paths.some((p) => p.arcs.some((r) => touched.has(Math.abs(r) - 1)))
-        ) {
-          results[i] = run(f);
-          ok[i] = check(i, results[i]!);
+        if (this.affected(i, touched)) {
+          results[i] = s.run(f, i);
+          ok[i] = s.check(i, results[i]!);
         }
       });
     }
-    const valid = ok.every(Boolean);
-    return this.formatResult(level, results, valid, promotedArcs);
+    return this.formatResult(s, results, ok.every(Boolean), promotedArcs);
   }
   private formatResult(
-    level: number,
-    results: ReturnType<typeof reconstructFeature>[],
+    s: ReturnType<SphericalQuadstreamDataset["session"]>,
+    results: Run[],
     valid: boolean,
     promotedArcs: number,
   ): QueryResult {
@@ -286,9 +398,15 @@ export class SphericalQuadstreamDataset {
           };
         }),
       },
-      level,
+      level: s.level,
       valid,
       promotedArcs,
+      ...(s.vis
+        ? {
+            hiddenPolygons: s.vis.hiddenPolygons,
+            hiddenRings: results.reduce((n, r) => n + r.hiddenRings, 0),
+          }
+        : {}),
       usedFallback: false,
       selectedFeatures: results.length,
       selectedVertices: results.reduce((n, r) => n + r.selectedVertices, 0),
@@ -297,90 +415,41 @@ export class SphericalQuadstreamDataset {
   async queryInterruptible(
     options: SphericalInterruptOptions = {},
   ): Promise<QueryResult | null> {
-    if ("bounds" in options || "validate" in options)
-      throw new Error("Spherical queries require global validated retrieval");
-    const { level: requested, shouldAbort, yieldTurn, sliceMs = 8 } = options;
-    const level = requested ?? this.priorities.maxLevel - 1;
-    if (
-      !Number.isFinite(level) ||
-      level < 0 ||
-      level >= this.priorities.maxLevel
-    )
-      throw new Error("Invalid spherical query level");
+    const { shouldAbort, yieldTurn, sliceMs = 8 } = options;
+    const s = this.session(options);
     if (shouldAbort?.()) return null;
-    const lookup = (id: number): Position | undefined => {
-      const v = this.topology.vertices[id];
-      return v ? [v.x, v.y] : undefined;
-    };
-    const full = this.priorities.maxLevel - 1;
-    const promoted = new Map<number, number>();
-    let promotedArcs = 0;
-    const levelOf = (arcId: number) => promoted.get(arcId) ?? level;
-    const check = (i: number, r: ReturnType<typeof reconstructFeature>) => {
-      const p = polygons(r.feature.geometry),
-        s = this.signatures[i]!;
-      return (
-        !r.missing &&
-        p.length === s.length &&
-        p.every((g, j) => validSphericalPolygon(g, s[j]!)) &&
-        lines(r.feature.geometry).every(validGreatCirclePath)
-      );
-    };
-    const run = (f: Topology["features"][number]) =>
-      reconstructFeature(
-        f,
-        this.topology.arcs,
-        this.arcTrees,
-        levelOf,
-        lookup,
-        false,
-        false,
-      );
-    const results: ReturnType<typeof reconstructFeature>[] = [];
+    const results: Run[] = [];
     const ok: boolean[] = [];
     let sliceStart = performance.now();
-    for (let i = 0; i < this.topology.features.length; i++) {
-      const r = run(this.topology.features[i]!);
-      results.push(r);
-      ok.push(check(i, r));
+    const tick = async () => {
       if (yieldTurn && performance.now() - sliceStart >= sliceMs) {
         await yieldTurn();
-        if (shouldAbort?.()) return null;
+        if (shouldAbort?.()) return false;
         sliceStart = performance.now();
       }
+      return true;
+    };
+    for (let i = 0; i < this.topology.features.length; i++) {
+      const r = s.run(this.topology.features[i]!, i);
+      results.push(r);
+      ok.push(s.check(i, r));
+      if (!(await tick())) return null;
     }
-    for (let pass = 0; pass <= full + 1; pass++) {
-      const touched = new Set<number>();
-      ok.forEach((good, i) => {
-        if (good) return;
-        for (const path of this.topology.features[i]!.paths)
-          for (const ref of path.arcs) {
-            const id = Math.abs(ref) - 1,
-              cur = levelOf(id);
-            if (cur >= full) continue;
-            promoted.set(id, Math.min(full, Math.floor(cur) + 1));
-            touched.add(id);
-          }
-      });
+    let promotedArcs = 0;
+    for (let pass = 0; pass <= s.full + 1; pass++) {
+      const touched = this.promote(s, ok);
       if (!touched.size) break;
-      promotedArcs = promoted.size;
+      promotedArcs = s.promoted.size;
       for (let i = 0; i < this.topology.features.length; i++) {
-        const f = this.topology.features[i]!;
-        if (
-          f.paths.some((p) => p.arcs.some((r) => touched.has(Math.abs(r) - 1)))
-        ) {
-          results[i] = run(f);
-          ok[i] = check(i, results[i]!);
-          if (yieldTurn && performance.now() - sliceStart >= sliceMs) {
-            await yieldTurn();
-            if (shouldAbort?.()) return null;
-            sliceStart = performance.now();
-          }
+        if (this.affected(i, touched)) {
+          results[i] = s.run(this.topology.features[i]!, i);
+          ok[i] = s.check(i, results[i]!);
+          if (!(await tick())) return null;
         }
       }
     }
     if (shouldAbort?.()) return null;
-    return this.formatResult(level, results, ok.every(Boolean), promotedArcs);
+    return this.formatResult(s, results, ok.every(Boolean), promotedArcs);
   }
 }
 export function buildSphericalQuadstream(
