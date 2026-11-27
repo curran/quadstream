@@ -1,15 +1,18 @@
 // Adapted from the MIT-licensed VizHub globe rPa9vFJ0kEvpjaJn-280C.
 // Pointer positions and scale baselines are synchronous, independent of rendering.
+import { anchorRotation, globeAnchor } from "./north-up.mjs";
 export function createGlobeInteraction({
   getState,
   update,
   onActive = () => {},
-  getSensitivity = () => ({ pan: 1, zoom: 1 }),
+  getSensitivity = () => ({ zoom: 1 }),
+  onStart = () => {},
   setTimer = setTimeout,
   clearTimer = clearTimeout,
 }) {
   const pointers = new Map();
-  let pinch = null,
+  let dragAnchor = null,
+    pinch = null,
     wheelTimer = null,
     wheeling = false,
     active = false;
@@ -25,15 +28,29 @@ export function createGlobeInteraction({
     const [a, b] = pointers.values();
     return Math.hypot(a.x - b.x, a.y - b.y);
   };
+  const midpoint = () => {
+    const [a, b] = pointers.values();
+    return [(a.x + b.x) / 2, (a.y + b.y) / 2];
+  };
   const rebase = () => {
-    pinch =
-      pointers.size === 2
-        ? { distance: distance(), scale: getState().scale }
-        : null;
+    const state = getState();
+    dragAnchor = null;
+    pinch = null;
+    if (pointers.size === 1) {
+      const [{ x, y }] = pointers.values();
+      dragAnchor = globeAnchor(state, x, y);
+    } else if (pointers.size === 2) {
+      pinch = {
+        distance: distance(),
+        scale: state.scale,
+        anchor: globeAnchor(state, ...midpoint()),
+      };
+    }
   };
   return {
     down(id, x, y) {
       if (pointers.has(id)) return;
+      if (!pointers.size) onStart();
       pointers.set(id, { x, y });
       rebase();
       sync();
@@ -44,29 +61,27 @@ export function createGlobeInteraction({
       pointers.set(id, { x, y });
       const state = getState();
       if (pointers.size === 1) {
-        const k =
-          (58 *
-            getSensitivity().pan *
-            (Math.min(state.width, state.height) / 600)) /
-          (state.scale || 1);
-        update({
-          rotation: [
-            state.rotation[0] + (x - old.x) * k,
-            state.rotation[1] - (y - old.y) * k,
-            state.rotation[2],
-          ],
-        });
+        if (!dragAnchor || (x === old.x && y === old.y)) return;
+        update({ rotation: anchorRotation(state, dragAnchor, x, y) });
       } else if (pointers.size === 2) {
         const d = distance();
         if (!pinch || pinch.distance <= 0) {
           if (d > 0) rebase();
           return;
         }
+        const scale = clamp(
+          pinch.scale * (d / pinch.distance) ** getSensitivity().zoom,
+          state.initialScale,
+        );
         update({
-          scale: clamp(
-            pinch.scale * (d / pinch.distance) ** getSensitivity().zoom,
-            state.initialScale,
-          ),
+          scale,
+          ...(pinch.anchor
+            ? {
+                rotation: anchorRotation(
+                  state, pinch.anchor, ...midpoint(), scale,
+                ),
+              }
+            : {}),
         });
       }
     },
@@ -75,16 +90,22 @@ export function createGlobeInteraction({
       rebase();
       sync();
     },
-    wheel(delta) {
+    wheel(delta, x, y) {
       if (!Number.isFinite(delta)) return;
+      if (!pointers.size && !wheeling) onStart();
       const s = getState();
+      const anchor = globeAnchor(s, x, y);
       wheeling = true;
       sync();
+      const scale = clamp(
+        s.scale * Math.exp(-delta * 0.0015 * getSensitivity().zoom),
+        s.initialScale,
+      );
       update({
-        scale: clamp(
-          s.scale * Math.exp(-delta * 0.0015 * getSensitivity().zoom),
-          s.initialScale,
-        ),
+        scale,
+        ...(anchor && scale !== s.scale
+          ? { rotation: anchorRotation(s, anchor, x, y, scale) }
+          : {}),
       });
       if (wheelTimer !== null) clearTimer(wheelTimer);
       wheelTimer = setTimer(() => {
@@ -98,6 +119,7 @@ export function createGlobeInteraction({
     rebase,
     dispose() {
       pointers.clear();
+      dragAnchor = null;
       pinch = null;
       if (wheelTimer !== null) clearTimer(wheelTimer);
       wheelTimer = null;
@@ -116,6 +138,10 @@ export function attachGlobeInteraction(canvas, controller) {
     registrations.push([type, fn, options]);
   };
   const captured = new Set();
+  const local = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    return [e.clientX - rect.left, e.clientY - rect.top];
+  };
   on("pointerdown", (e) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     try {
@@ -124,10 +150,10 @@ export function attachGlobeInteraction(canvas, controller) {
       void error;
     }
     captured.add(e.pointerId);
-    controller.down(e.pointerId, e.clientX, e.clientY);
+    controller.down(e.pointerId, ...local(e));
     canvas.style.cursor = "grabbing";
   });
-  on("pointermove", (e) => controller.move(e.pointerId, e.clientX, e.clientY));
+  on("pointermove", (e) => controller.move(e.pointerId, ...local(e)));
   const release = (e) => {
     controller.up(e.pointerId);
     captured.delete(e.pointerId);
@@ -152,6 +178,7 @@ export function attachGlobeInteraction(canvas, controller) {
             : e.deltaMode === 2
               ? canvas.clientHeight
               : 1),
+        ...local(e),
       );
     },
     { passive: false },
