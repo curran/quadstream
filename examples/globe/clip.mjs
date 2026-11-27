@@ -9,6 +9,7 @@ import {
   orthographicViewCone,
   filterVisibleFeatures,
   computeFeatureCap,
+  featureCap,
 } from "./cull.mjs";
 
 const DEG = 180 / Math.PI;
@@ -251,6 +252,88 @@ function windingAroundCenter(w, info) {
   return total;
 }
 
+const NEAR = 2e-9,
+  SORT_MIN = 12;
+
+function pairDelta(p, q, side) {
+  const delta = mod(side < 0 ? p.to - q.from : q.from - p.to);
+  return delta > TAU - 1e-9 ? 0 : delta;
+}
+
+/** Reference O(c^2) pairing: the first entry met walking from each exit. */
+export function pairPiecesReference(pieces, side = EXTERIOR) {
+  return pieces.map((p) => {
+    let best = 0,
+      bestDelta = Infinity;
+    pieces.forEach((q, m) => {
+      const d = pairDelta(p, q, side);
+      if (d < bestDelta) {
+        bestDelta = d;
+        best = m;
+      }
+    });
+    return best;
+  });
+}
+
+/**
+ * Sorted-event pairing: entries are ordered by azimuth, each exit binary
+ * searches its neighbourhood and the exact reference delta rule decides among
+ * the few candidates, so ties, wraparound and epsilon behave identically.
+ */
+export function pairPieces(pieces, side = EXTERIOR) {
+  const c = pieces.length;
+  if (c < SORT_MIN) return pairPiecesReference(pieces, side);
+  const keys = pieces.map((q) => mod(q.from)),
+    order = Array.from(keys.keys()).sort((a, b) => keys[a] - keys[b] || a - b),
+    sorted = order.map((i) => keys[i]);
+  const lowerBound = (v) => {
+    let lo = 0,
+      hi = c;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (sorted[mid] < v) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  };
+  return pieces.map((p) => {
+    const t = mod(p.to),
+      cand = [];
+    // Walk away from the exit along the boundary in the pairing direction.
+    const dir = side < 0 ? -1 : 1;
+    const dist = (k) => mod(dir * (sorted[k] - t) + NEAR);
+    let k = side < 0 ? lowerBound(t + NEAR + 1e-300) - 1 : lowerBound(t - NEAR);
+    k = ((k % c) + c) % c;
+    for (let seen = 0; seen < c; seen++, k = (((k + dir) % c) + c) % c) {
+      const d = dist(k);
+      if (d > 2 * NEAR) {
+        // First strictly beyond the cluster, plus numerically equal neighbours.
+        cand.push(order[k]);
+        const f = sorted[k];
+        for (let j = (((k + dir) % c) + c) % c, n = 1; n < c; n++) {
+          if (Math.abs(sorted[j] - f) > 1e-12) break;
+          cand.push(order[j]);
+          j = (((j + dir) % c) + c) % c;
+        }
+        break;
+      }
+      cand.push(order[k]);
+    }
+    cand.sort((a, b) => a - b);
+    let best = cand[0],
+      bestDelta = Infinity;
+    for (const m of cand) {
+      const d = pairDelta(p, pieces[m], side);
+      if (d < bestDelta) {
+        bestDelta = d;
+        best = m;
+      }
+    }
+    return best;
+  });
+}
+
 /**
  * Clip one ring to the window. Status:
  * - inside: every vertex inside, `ring` is the original array
@@ -309,19 +392,7 @@ export function clipRing(w, info, side = EXTERIOR) {
   }
   // Pair every exit with the first entry met walking along the boundary, so
   // disjoint pieces of one ring become separate rings.
-  const next = pieces.map((p) => {
-    let best = 0,
-      bestDelta = Infinity;
-    pieces.forEach((q, m) => {
-      const delta = mod(side < 0 ? p.to - q.from : q.from - p.to);
-      const d = delta > TAU - 1e-9 ? 0 : delta;
-      if (d < bestDelta) {
-        bestDelta = d;
-        best = m;
-      }
-    });
-    return best;
-  });
+  const next = pairPieces(pieces, side);
   const used = new Uint8Array(pieces.length),
     rings = [];
   for (let s = 0; s < pieces.length; s++) {
@@ -346,10 +417,14 @@ function polygonsOf(geometry) {
       : [];
 }
 
-export function buildFeatureInfo(feature) {
+// Ring vectors are built on first use: features whose cap misses the window
+// never pay the per-vertex trigonometry.
+export function buildFeatureInfo(feature, cap = computeFeatureCap(feature)) {
+  const polys = polygonsOf(feature.geometry),
+    built = polys.map((poly) => new Array(poly.length));
   return {
-    cap: computeFeatureCap(feature),
-    polys: polygonsOf(feature.geometry).map((poly) => poly.map(ringInfo)),
+    cap,
+    ring: (pi, ri) => (built[pi][ri] ??= ringInfo(polys[pi][ri])),
   };
 }
 
@@ -405,13 +480,12 @@ export function clipFeatureCollection(geojson, w, getInfo) {
     const outPolys = [];
     let changed = false;
     polys.forEach((poly, pi) => {
-      const rings = info.polys[pi],
-        outRings = [];
+      const outRings = [];
       let drop = false,
         polyChanged = false;
       for (let ri = 0; ri < poly.length && !drop; ri++) {
         const hole = ri > 0,
-          rinfo = rings[ri];
+          rinfo = info.ring(pi, ri);
         let res;
         if (!isCapVisible(rinfo.cap, w)) res = { status: "away" };
         else if (capInside(rinfo.cap, w))
@@ -477,25 +551,32 @@ export function createViewClipper({ margin = CLIP_MARGIN_RAD } = {}) {
     capCache = new WeakMap();
   let cached = null;
 
-  function infoFor(geojson) {
+  function infoFor(geojson, source) {
     let infos = infoCache.get(geojson);
-    if (!infos) {
-      infos = { features: [], sourceVertices: countVertices(geojson) };
+    if (!infos || infos.source !== source) {
+      infos = {
+        features: [],
+        source,
+        sourceVertices: infos?.sourceVertices ?? countVertices(geojson),
+      };
       infoCache.set(geojson, infos);
     }
     return infos;
   }
-  const getInfoFor = (infos) => (i, feature) =>
-    (infos.features[i] ??= buildFeatureInfo(feature));
+  const getInfoFor = (infos, source) => (i, feature) =>
+    (infos.features[i] ??= buildFeatureInfo(
+      feature,
+      featureCap(feature, i, source),
+    ));
 
-  return function clip(geojson, state) {
+  return function clip(geojson, state, source) {
     const cone = orthographicViewCone(state),
-      infos = geojson?.features?.length ? infoFor(geojson) : null,
+      infos = geojson?.features?.length ? infoFor(geojson, source) : null,
       sourceVertices = infos?.sourceVertices ?? 0,
       sourceFeatures = geojson?.features?.length ?? 0;
     if (!infos || cone.viewRadius + margin > CLIP_MAX_RADIUS_RAD) {
       cached = null;
-      const visible = filterVisibleFeatures(geojson, state, capCache);
+      const visible = filterVisibleFeatures(geojson, state, capCache, source);
       return {
         geojson: visible,
         stats: {
@@ -533,7 +614,7 @@ export function createViewClipper({ margin = CLIP_MARGIN_RAD } = {}) {
       { geojson: out, stats } = clipFeatureCollection(
         geojson,
         window,
-        getInfoFor(infos),
+        getInfoFor(infos, source),
       );
     const full = { mode: "clip", sourceFeatures, sourceVertices, ...stats };
     cached = { source: geojson, window, geojson: out, stats: full };

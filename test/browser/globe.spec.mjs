@@ -343,6 +343,7 @@ test("interactive max LOD caps detail while dragging and refines on release", as
 test("default real atlas loads, reduces geometry and matches full-detail pixels across views", async ({
   page,
 }) => {
+  test.slow();
   await page.goto("/examples/globe/index.html");
   await ready(page);
   await manual(page, 4);
@@ -385,7 +386,8 @@ test("failed local file surfaces an error and fixture reload recovers", async ({
 test("wheel zoom-in and zoom-out update auto LOD monotonically without oscillating", async ({
   page,
 }) => {
-  await page.goto("/examples/globe/index.html");
+  test.slow();
+  await page.goto("/examples/globe/index.html?atlas=110m");
   await ready(page);
   const box = await globe(page).boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -579,6 +581,7 @@ test("view clipping matches unclipped pixels on 110m and 50m atlases at zoomed, 
 test("live globe clips geometry when zoomed, reports stats, and ?clip=0 disables it", async ({
   page,
 }, testInfo) => {
+  test.slow();
   const zoomIn = async () => {
     await ready(page);
     const box = await globe(page).boundingBox();
@@ -608,7 +611,9 @@ test("live globe clips geometry when zoomed, reports stats, and ?clip=0 disables
     contentType: "image/png",
   });
 
-  await page.goto("/examples/globe/index.html?clip=0");
+  await page.goto("/examples/globe/index.html?clip=0&atlas=110m");
+  // Cull-only draws every visible vertex each frame; the 50m default is too
+  // heavy for a software-GL screenshot and the draw mode ignores the atlas.
   await zoomIn();
   await expect(globe(page)).toHaveAttribute("data-draw-mode", "cull-only");
   await page.screenshot({ path: testInfo.outputPath("clip-off.png") });

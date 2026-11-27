@@ -21,7 +21,7 @@ export function createGlobeRenderer(
     if (fill) ctx.fill();
     if (stroke) ctx.stroke();
   }
-  return (state, geojson) => {
+  return (state, geojson, source) => {
     const {
       width,
       height,
@@ -70,10 +70,11 @@ export function createGlobeRenderer(
     let target = geojson,
       stats = null;
     if (clipper) {
-      const res = clipper(geojson, state);
+      const res = clipper(geojson, state, source);
       target = res.geojson;
       stats = res.stats;
-    } else if (cull) target = filterVisibleFeatures(geojson, state, capCache);
+    } else if (cull)
+      target = filterVisibleFeatures(geojson, state, capCache, source);
     if (target?.features?.length) {
       ctx.beginPath();
       path(target);

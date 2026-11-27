@@ -1,4 +1,4 @@
-import { validPolygon, simpleClosedRing } from "./geometry.js";
+import { validPolygon } from "./geometry.js";
 import {
   buildBlgTree,
   selectBlgPositions,
@@ -30,21 +30,39 @@ export function buildArcTrees(
     ),
   );
 }
+/** True when fewer than 3 distinct positions precede the closing vertex. */
+function distinctBelow3(coords: readonly Position[]): boolean {
+  const n = coords.length - 1;
+  let first: Position | undefined, second: Position | undefined;
+  for (let i = 0; i < n; i++) {
+    const p = coords[i]!;
+    if (!first) first = p;
+    else if (p[0] !== first[0] || p[1] !== first[1]) {
+      if (!second) second = p;
+      else if (
+        (p[0] !== second[0] || p[1] !== second[1]) &&
+        (first[0] !== second[0] || first[1] !== second[1])
+      )
+        return false;
+    }
+  }
+  return true;
+}
 export function reconstructFeature(
   f: TopologyFeature,
   arcs: readonly Arc[],
   trees: readonly BlgTree[],
   level: number | ((arcId: number) => number),
   lookup: CoordinateLookup,
-  includeMissing = false,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _includeMissing = false,
   planarValidity = true,
 ): ReconstructionResult {
   let missing = false,
     selectedVertices = 0;
   const paths: Position[][] = [];
   for (const path of f.paths) {
-    const coords: Position[] = [],
-      allIds: number[] = [];
+    const coords: Position[] = [];
     let pathSelectedVertices = 0;
     for (const ref of path.arcs) {
       const arcId = Math.abs(ref) - 1,
@@ -54,17 +72,13 @@ export function reconstructFeature(
         tree,
         typeof level === "number" ? level : level(arcId),
       );
-      if (ref < 0) positions.reverse();
-      const orderedIds = ref < 0 ? [...arc.vertexIds].reverse() : arc.vertexIds;
-      for (const id of orderedIds)
-        if (!allIds.length || allIds.at(-1) !== id) allIds.push(id);
+      const last = positions.length - 1;
       for (let i = 0; i < positions.length; i++) {
-        const id = arc.vertexIds[positions[i]!]!,
+        const id = arc.vertexIds[positions[ref < 0 ? last - i : i]!]!,
           xy = lookup(id);
         if (!xy) {
           missing = true;
-          if (includeMissing) continue;
-          else continue;
+          continue;
         }
         if (
           coords.length &&
@@ -77,12 +91,18 @@ export function reconstructFeature(
         pathSelectedVertices++;
       }
     }
-    if (path.closed) {
-      const distinct = new Set(coords.slice(0, -1).map((p) => p.join(",")));
-      if (distinct.size < 3) {
-        coords.length = 0;
-        pathSelectedVertices = 0;
-        for (const id of allIds) {
+    if (path.closed && distinctBelow3(coords)) {
+      // Collapsed ring: restore every original vertex. Only this rare path
+      // pays for walking all arc positions.
+      coords.length = 0;
+      pathSelectedVertices = 0;
+      let lastId = -1;
+      for (const ref of path.arcs) {
+        const ids = arcs[Math.abs(ref) - 1]!.vertexIds;
+        for (let k = 0; k < ids.length; k++) {
+          const id = ids[ref < 0 ? ids.length - 1 - k : k]!;
+          if (id === lastId) continue;
+          lastId = id;
           const xy = lookup(id);
           if (
             xy &&
@@ -132,13 +152,6 @@ export function reconstructFeature(
       valid = groups.every((g) => g[0]!.length >= 2);
       break;
   }
-  // A closed ring whose last segment collapses must not be accepted by accident.
-  if (
-    planarValidity &&
-    f.geometryType === "Polygon" &&
-    !groups[0]!.every(simpleClosedRing)
-  )
-    valid = false;
   return {
     feature: {
       type: "Feature",

@@ -3,10 +3,7 @@ import {
   attachGlobeInteraction,
   resizedView,
 } from "./interaction.mjs";
-import {
-  quantizeAutoLevel,
-  createLatestGeometry,
-} from "./lod.mjs";
+import { quantizeAutoLevel, createLatestGeometry } from "./lod.mjs";
 import { createGlobeRenderer } from "./map.mjs";
 import { createMinimapRenderer } from "./minimap.mjs";
 import { GlobeWorkerClient } from "./client.mjs";
@@ -40,7 +37,7 @@ let original,
   epoch = 0,
   raf = 0,
   ready = false,
-  sourceName = "110m",
+  sourceName = "50m",
   selectedFile = null,
   abort,
   disposed = false;
@@ -133,12 +130,9 @@ function schedule() {
     const activeGeojson =
       $("mode").value === "original" ? original : (frame?.geojson ?? original);
     const minimapGeojson = minimapFrame?.geojson ?? null;
-    const drawn = draw(state, activeGeojson);
+    const drawn = draw(state, activeGeojson, original);
     drawStats = drawn.stats;
-    drawMinimap?.(
-      { ...state, miniSize: 160 },
-      minimapGeojson,
-    );
+    drawMinimap?.({ ...state, miniSize: 160 }, minimapGeojson);
     frameMs = performance.now() - start;
     diagnostics();
   });
@@ -147,12 +141,9 @@ function requestLevel() {
   if (!ready || !latest || $("mode").value === "original") return;
   const targetLevel = Number($("level").value),
     interactiveCap = Number($("interactive-level").value),
-    zoomRatio =
-      state.initialScale > 0 ? state.scale / state.initialScale : 1,
+    zoomRatio = state.initialScale > 0 ? state.scale / state.initialScale : 1,
     settled = Math.max(0, Math.min(19, targetLevel + Math.log2(zoomRatio))),
-    effective = state.interacting
-      ? Math.min(interactiveCap, settled)
-      : settled,
+    effective = state.interacting ? Math.min(interactiveCap, settled) : settled,
     level = quantizeAutoLevel(effective, state.interacting);
   $("level-value").value = targetLevel;
   $("level-value").textContent = targetLevel;
@@ -364,9 +355,13 @@ $("file").addEventListener("change", () => {
   selectedFile = $("file").files[0] ?? null;
   void init();
 });
-if (new URLSearchParams(location.search).get("fixture") === "1") {
-  $("atlas").value = "fixture";
-  sourceName = "fixture";
+{
+  const params = new URLSearchParams(location.search),
+    requested = params.get("fixture") === "1" ? "fixture" : params.get("atlas");
+  if ([...$("atlas").options].some((o) => o.value === requested)) {
+    $("atlas").value = requested;
+    sourceName = requested;
+  }
 }
 window.addEventListener(
   "pagehide",
