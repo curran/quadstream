@@ -58,8 +58,5 @@ export function filterVisibleFeatures(geojson, state, capCache, source) {
     caps = computeFeatureCaps(geojson);
     capCache?.set(geojson, caps);
   }
-  for (let i = 0; i < features.length; i++) {
-    if (isCapVisible(caps[i], cone)) visible.push(features[i]);
-  }
-  return { type: "FeatureCollection", features: visible };
+  return filterSphericalFeatures(geojson, cone, caps);
 }
