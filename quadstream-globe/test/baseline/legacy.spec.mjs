@@ -28,8 +28,8 @@ test("capture settled legacy views and observable geometry", async ({ page, brow
     }, view);
     await expect.poll(() => page.locator("#globe").evaluate((el) =>
       JSON.parse(el.dataset.rotation))).toEqual(view.rotation);
-    await expect.poll(() => page.locator("#globe").evaluate((el) =>
-      Math.abs(Number(el.dataset.scale) / Number(el.dataset.initialScale) - view.zoom))).toBeLessThan(0.001);
+    await expect.poll(() => page.locator("#globe").evaluate((el, zoom) =>
+      Math.abs(Number(el.dataset.scale) / Number(el.dataset.initialScale) - zoom), view.zoom)).toBeLessThan(0.001);
     await ready(page);
     samples.push(performance.now() - began);
     const diagnostics = await page.locator("#globe").evaluate((el) => ({
