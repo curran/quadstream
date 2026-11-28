@@ -1,75 +1,36 @@
-# React + TypeScript + Vite
+# Quadstream Globe (React/Vite migration)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Parallel implementation only; the root library and legacy globe remain authoritative.
+The migration plan is [here](../plans/REACT_VITE_DEMO.md).
 
-Currently, two official plugins are available:
+Use Node 26 for the app (the library retains its own Node support).
+From this directory, run `npm ci` once the generated lockfile has been committed
+(`npm install` for the initial bootstrap only), then:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- `npm run dev` — isolated Vite development server.
+- `npm run check` — typecheck, lint, and unit tests with Node coverage.
+- `npm run test:browser` — build and test the production app under /migration/.
+- `npm run test:baseline` — legacy fixture capture with screenshots and JSON.
+  Requires root dependencies installed and `npm --prefix .. run build` first.
+  Install Chromium and WebKit via `npx playwright install` if not already available.
 
-## React Compiler
+The dedicated workflow uses Node 26 and the matching Playwright browser image.
+During the one-time lockfile bootstrap it publishes the generated app lockfile;
+commit that exact file before merging, then installs use npm ci.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Baseline methodology
 
-## Expanding the ESLint configuration
+The baseline uses a fixed 1100 × 850 viewport, DPR 1, local fixture, disabled
+navigation smoothing, and a shared deterministic camera trace. It records the
+settled camera and geometry diagnostics and canvas images for four views.
+Results are per-run artifacts, not yet accepted golden snapshots. The startup
+and observed convergence values include browser automation overhead and are
+diagnostic, not frame-time or promotion gates.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
-
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
+For parity and performance in later phases, run legacy and React with the same
+browser build, hardware, fixtures, camera trace, viewport and fonts; retain
+raw timings and repeat runs to measure noise. Add instrumentation for actual
+frame time, input-to-frame latency, idle draws, worker and memory metrics, and
+label-off/on comparisons before asserting the plan's proposed thresholds.
+The existing root browser suite remains unchanged. This scaffold does not yet
+implement the globe, city overlay, or quantitative performance gates.
