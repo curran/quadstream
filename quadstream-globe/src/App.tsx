@@ -18,13 +18,13 @@ export default function App() {
     <main ref={root} aria-label="Quadstream Globe">
       <canvas
             id="globe"
-            tabIndex="0"
+            tabIndex={0}
             aria-label="Interactive globe. Drag to rotate and pinch or scroll to zoom. Hold arrow keys to thrust, D to fly in, C to fly out, Space to brake and R to reset."
           ></canvas>
           <canvas
             id="minimap"
-            width="160"
-            height="160"
+            width={160}
+            height={160}
             aria-label="Globe culling minimap"
           ></canvas>
           <div id="controls">
@@ -51,7 +51,7 @@ export default function App() {
                 <summary>Rendering</summary>
               <label
                 >Geometry
-                <select id="mode">
+                <select id="mode" defaultValue="quadstream">
                   <option value="quadstream">Quadstream</option>
                   <option value="original">Original</option>
                 </select></label
