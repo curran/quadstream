@@ -57,14 +57,14 @@ export function repairRing(ring: readonly Position[], chart: SphericalChart | nu
   if (ring.length < 4 || ring.length > maxRing) return null;
   let pts = ring.slice(0, -1);
   try {
-    chart ??= sphericalChart(ring);
+    const activeChart = chart ?? sphericalChart(ring);
     for (let pass = 0; pass < maxPasses; pass++) {
       const closed = [...pts, pts[0]!],
-        xy = closed.map((p) => projectSpherical(p, chart));
+        xy = closed.map((p) => projectSpherical(p, activeChart));
       if (simpleClosedRing(xy)) return closed;
       const hit = firstCrossing(xy);
       if (!hit) return null;
-      const x = unproject(hit.x, chart),
+      const x = unproject(hit.x, activeChart),
         inner = pts.slice(hit.i + 1, hit.j + 1);
       pts =
         inner.length <= pts.length - inner.length
