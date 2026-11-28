@@ -15,13 +15,13 @@ export function createSphericalViewClipper({margin=0,radiusScale=1.2,maxRadius=M
   let cached:{window:SphericalClipWindow;result:CachedSphericalClipResult}|undefined;
   const invalidate=()=>{frame=undefined;capIdentity=undefined;caps=undefined;infos=[];cached=undefined;sourceVertices=0;};
   function clip(geojson:FeatureCollection, cone:SphericalViewCone, suppliedCaps?:readonly SphericalCap[]):CachedSphericalClipResult {
-    if(!Number.isFinite(cone.viewRadius)||cone.viewRadius<0||cone.viewRadius>Math.PI||Math.abs(Math.hypot(cone.vx,cone.vy,cone.vz)-1)>1e-6||![cone.vx,cone.vy,cone.vz].every(Number.isFinite))throw new Error("Invalid spherical view cone");
+    if(!Number.isFinite(cone.viewRadius)||cone.viewRadius<0||cone.viewRadius>Math.PI||Math.abs(Math.hypot(cone.vx,cone.vy,cone.vz)-1)>1e-9||![cone.vx,cone.vy,cone.vz].every(Number.isFinite))throw new Error("Invalid spherical view cone");
     if(suppliedCaps&&suppliedCaps.length!==geojson.features.length)throw new Error("Spherical caps must match feature count");
     if(frame!==geojson||capIdentity!==suppliedCaps){invalidate();frame=geojson;capIdentity=suppliedCaps;caps=suppliedCaps??computeFeatureCaps(geojson);sourceVertices=countVertices(geojson);}
     const sourceFeatures=geojson.features.length;
     if(!sourceFeatures||cone.viewRadius+margin>maxRadius||cone.viewRadius+margin===0){
       cached=undefined;const visible=filterSphericalFeatures(geojson,cone,caps);
-      return {geojson:visible,stats:{mode:"cull",rebuilt:true,sourceFeatures,sourceVertices,features:visible.features.length,vertices:countVertices(visible),rings:{kept:0,clipped:0,wrapped:0,dropped:0}}};
+      return {geojson:visible,stats:{mode:"cull",rebuilt:true,sourceFeatures,sourceVertices,features:visible.features.length,vertices:countVertices(visible),rings:{kept:0,clipped:0,wrapped:0,dropped:0},stream:{classified:0,inside:0,outside:0}}};
     }
     if(cached){
       const w=cached.window;
