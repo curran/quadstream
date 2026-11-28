@@ -1,6 +1,6 @@
 # Fused spherical BLG clipping
 
-Proposed research design, 2026-11-26. Companion to [interactive performance roadmap](INTERACTIVE_ALGORITHMIC_PERFORMANCE.md). IP4b prototypes the algorithm independently; IP10 integrates it only after correctness and performance gates. 
+Proposed research design, 2026-11-26. Companion to [interactive performance roadmap](INTERACTIVE_ALGORITHMIC_PERFORMANCE.md). IP4b prototypes the algorithm independently; IP10 integrates it only after correctness and performance gates.
 An initial isolated single-ring prototype is now provided in `examples/globe/blg-clip-prototype.mjs`. It builds conservative convex caps from subtree Cartesian bounds, preserves selected span endpoints (including fractional LOD and reversed traversal), and feeds compacted geometry to the existing clip assembler. No-crossing and collapsed cases fall back to full winding/reference selection. The renderer also streams ring classifications and supplies its actual land geometry to the minimap. This is not production BLG integration: multi-arc shared topology, winding certificates, actual atlas benchmarks and the IP10 gates remain open. Run `npm run build && node scripts/bench-blg-clip-node.mjs` for synthetic parity and p50/p95 measurements; no measured gain is claimed here.
 
 ## 1. Current path and proposed invariant

@@ -2,21 +2,21 @@ name: React globe
 on:
   pull_request:
     paths:
-      - 'quadstream-globe/**'
-      - 'src/**'
-      - 'examples/**'
-      - 'package*.json'
-      - 'tsconfig.json'
-      - '.github/workflows/react-globe.yml'
+      - "quadstream-globe/**"
+      - "src/**"
+      - "examples/**"
+      - "package*.json"
+      - "tsconfig.json"
+      - ".github/workflows/react-globe.yml"
   push:
     branches: [main]
     paths:
-      - 'quadstream-globe/**'
-      - 'src/**'
-      - 'examples/**'
-      - 'package*.json'
-      - 'tsconfig.json'
-      - '.github/workflows/react-globe.yml'
+      - "quadstream-globe/**"
+      - "src/**"
+      - "examples/**"
+      - "package*.json"
+      - "tsconfig.json"
+      - ".github/workflows/react-globe.yml"
 permissions:
   contents: read
 jobs:
@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '26'
+          node-version: "26"
       - run: npm ci --ignore-scripts
       - run: npm run build
       - name: Install app dependencies

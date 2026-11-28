@@ -1,6 +1,9 @@
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
-import { createGlobeGeometry, decodeCountries } from "../../../examples/globe/geometry.mjs";
+import {
+  createGlobeGeometry,
+  decodeCountries,
+} from "../../../examples/globe/geometry.mjs";
 import { packGeometry } from "../../../examples/globe/wire.mjs";
 let engine;
 let queue = [];

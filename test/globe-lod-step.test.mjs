@@ -57,8 +57,7 @@ test("zooming in and out yields nested quantized targets bounded by the floor", 
   );
   assert.equal(levels[0], MIN_AUTO_LEVEL);
   assert.ok(levels.at(-1) > MIN_AUTO_LEVEL);
-  for (let i = 1; i < levels.length; i++)
-    assert.ok(levels[i] >= levels[i - 1]);
+  for (let i = 1; i < levels.length; i++) assert.ok(levels[i] >= levels[i - 1]);
   assert.deepEqual(
     Array.from({ length: 101 }, (_, i) =>
       levelForZoom(4, 2 ** ((70 - i) / 20)),

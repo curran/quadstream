@@ -12,7 +12,10 @@ const topojson = require("topojson-client");
 const atlas = process.argv[2] ?? "50m";
 const repeats = Number(process.argv[3] ?? 3);
 const source = JSON.parse(
-  readFileSync(`node_modules/visionscarto-world-atlas/world/${atlas}.json`, "utf8"),
+  readFileSync(
+    `node_modules/visionscarto-world-atlas/world/${atlas}.json`,
+    "utf8",
+  ),
 );
 const median = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
 const out = { atlas, repeats, init: [], heapDelta: [], rss: [], queries: {} };

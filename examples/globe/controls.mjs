@@ -40,11 +40,22 @@ indicator.addEventListener("click", () => {
 function updateStatus() {
   const phase = status.dataset.phase;
   const fallback = /fallback|invalid coarse geometry/i.test(status.textContent);
-  const kind = phase === "error" ? "error" : phase === "ready"
-    ? (fallback ? "warning" : "ready") : "loading";
+  const kind =
+    phase === "error"
+      ? "error"
+      : phase === "ready"
+        ? fallback
+          ? "warning"
+          : "ready"
+        : "loading";
   indicator.hidden = kind === "ready";
   indicator.dataset.kind = kind;
-  indicator.textContent = { error: "Error", warning: "Warning", loading: "Loading…", ready: "" }[kind];
+  indicator.textContent = {
+    error: "Error",
+    warning: "Warning",
+    loading: "Loading…",
+    ready: "",
+  }[kind];
   indicator.title = status.textContent;
   retry.hidden = kind !== "error" && kind !== "warning";
 }

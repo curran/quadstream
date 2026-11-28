@@ -60,7 +60,12 @@ test("drag preserves the geographic point through diagonal movement", () => {
   const { g, state, active } = harness();
   const point = projection(state).invert([350, 340]);
   g.down(1, 350, 340);
-  for (const [x, y] of [[370, 350], [410, 380], [330, 310], [350, 340]]) {
+  for (const [x, y] of [
+    [370, 350],
+    [410, 380],
+    [330, 310],
+    [350, 340],
+  ]) {
     g.move(1, x, y);
     anchored(state, point, x, y);
   }
@@ -115,7 +120,8 @@ function springHarness() {
       camera.setGoal({
         lon: rotation?.[0],
         lat: rotation?.[1],
-        z: scale === undefined ? undefined : Math.log(scale / base.initialScale),
+        z:
+          scale === undefined ? undefined : Math.log(scale / base.initialScale),
       });
     },
   });
@@ -293,10 +299,15 @@ test("listener binding converts client coordinates, handles cancel and cleanup",
   const canvas = new Canvas();
   const detach = attachGlobeInteraction(canvas, g);
   const fire = (type, p = {}) =>
-    canvas.dispatchEvent(Object.assign(new Event(type, { cancelable: true }), p));
+    canvas.dispatchEvent(
+      Object.assign(new Event(type, { cancelable: true }), p),
+    );
   const point = projection(state).invert([300, 300]);
   fire("pointerdown", {
-    pointerId: 1, pointerType: "touch", clientX: 340, clientY: 350,
+    pointerId: 1,
+    pointerType: "touch",
+    clientX: 340,
+    clientY: 350,
   });
   fire("pointermove", { pointerId: 1, clientX: 360, clientY: 370 });
   anchored(state, point, 320, 320);
@@ -308,7 +319,12 @@ test("listener binding converts client coordinates, handles cancel and cleanup",
   assert.equal(canvas.style.cursor, "grab");
   assert.equal(fire("gesturestart"), false);
   detach();
-  fire("pointerdown", { pointerId: 3, pointerType: "touch", clientX: 340, clientY: 350 });
+  fire("pointerdown", {
+    pointerId: 3,
+    pointerType: "touch",
+    clientX: 340,
+    clientY: 350,
+  });
   assert.equal(g.pointerCount, 0);
   assert.equal(canvas.ids.size, 0);
 });
@@ -405,7 +421,11 @@ test("direction reversal suppresses obsolete frames and reuses completed cache e
 });
 
 test("zoom reversals reject worse and equally distant LODs in both directions", async () => {
-  for (const [initial, obsolete, target] of [[5, 9, 6], [9, 5, 8], [5, 9, 7]]) {
+  for (const [initial, obsolete, target] of [
+    [5, 9, 6],
+    [9, 5, 8],
+    [5, 9, 7],
+  ]) {
     const { c, requests, frames, pending } = geometryHarness();
     const first = c.select(initial);
     pending[0].resolve(initial);

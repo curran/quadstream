@@ -91,7 +91,6 @@ export function createMinimapRenderer(d3, ctx) {
       path(geojson);
       ctx.fill();
       ctx.stroke();
-
     }
     // Highlight the submitted land independently of the coarse context's
     // readiness. Never turn an explicit empty main frame into candidate land.

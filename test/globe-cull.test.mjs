@@ -6,7 +6,10 @@ import * as d3 from "d3";
 import * as topojson from "topojson-client";
 import { computeFeatureCap, isCapVisible } from "../dist/index.js";
 import { lonLatToVec } from "../dist/spherical-cull.js";
-import { orthographicViewCone, filterVisibleFeatures } from "../examples/globe/cull.mjs";
+import {
+  orthographicViewCone,
+  filterVisibleFeatures,
+} from "../examples/globe/cull.mjs";
 import { decodeCountries } from "../examples/globe/geometry.mjs";
 import { createGlobeRenderer } from "../examples/globe/map.mjs";
 

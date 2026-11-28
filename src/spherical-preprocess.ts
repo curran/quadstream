@@ -61,8 +61,7 @@ export function buildTopologySafeArcTrees(
       groups.push({ paths: group, signature: signatures[fi]![gi] });
       const unique = new Set<number>();
       for (const path of group)
-        for (const vertex of path)
-          if (!anchors[vertex]) unique.add(vertex);
+        for (const vertex of path) if (!anchors[vertex]) unique.add(vertex);
       for (const vertex of unique) owners[vertex]!.push(id);
     }
   }
@@ -83,7 +82,9 @@ export function buildTopologySafeArcTrees(
   function validGroup(id: number): boolean {
     const { paths, signature } = groups[id]!;
     const coordinates = paths.map((path) =>
-      path.filter((vertex) => active[vertex]).map((vertex) => positions[vertex]!),
+      path
+        .filter((vertex) => active[vertex])
+        .map((vertex) => positions[vertex]!),
     );
     return signature
       ? validSphericalPolygon(coordinates, signature)

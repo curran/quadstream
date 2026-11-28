@@ -7,14 +7,18 @@ export const cameraTrace = [
 ];
 
 export function summarizeSamples(samples) {
-  if (samples.length === 0 || samples.some((v) => !Number.isFinite(v) || v < 0)) {
+  if (
+    samples.length === 0 ||
+    samples.some((v) => !Number.isFinite(v) || v < 0)
+  ) {
     throw new RangeError("Expected nonempty, finite, nonnegative samples");
   }
   const sorted = [...samples].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
-  const median = sorted.length % 2
-    ? sorted[middle]
-    : sorted[middle - 1] / 2 + sorted[middle] / 2;
+  const median =
+    sorted.length % 2
+      ? sorted[middle]
+      : sorted[middle - 1] / 2 + sorted[middle] / 2;
   return {
     count: sorted.length,
     median,

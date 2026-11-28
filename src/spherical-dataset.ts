@@ -1,9 +1,6 @@
 import { buildTopologyWithPolicy } from "./topology.js";
 import { decodeTopoJSON } from "./adapters.js";
-import {
-  reconstructFeature,
-  type CollapsedRingPolicy,
-} from "./reconstruct.js";
+import { reconstructFeature, type CollapsedRingPolicy } from "./reconstruct.js";
 import { stableBlgRandom } from "./blg.js";
 import { buildTopologySafeArcTrees } from "./spherical-preprocess.js";
 import { signedArea } from "./geometry.js";
@@ -356,7 +353,9 @@ export class SphericalQuadstreamDataset {
           lookup,
           false,
           false,
-          drop ? { collapsed: "drop", hiddenPaths: vis!.hidden[i] } : { collapsed: "drop" },
+          drop
+            ? { collapsed: "drop", hiddenPaths: vis!.hidden[i] }
+            : { collapsed: "drop" },
         );
     return { level, check, run, vis };
   }

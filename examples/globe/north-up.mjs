@@ -12,8 +12,7 @@ export function globeAnchor(view, x, y) {
   const u = (x - cx) / view.scale;
   const v = (cy - y) / view.scale;
   const d = u * u + v * v;
-  if (!Number.isFinite(d) || d > 1 + 1e-12 || !(view.scale > 0))
-    return null;
+  if (!Number.isFinite(d) || d > 1 + 1e-12 || !(view.scale > 0)) return null;
   const z = Math.sqrt(Math.max(0, 1 - d));
   const pitch = view.rotation[1] * RAD;
   const a = z * Math.cos(pitch) + v * Math.sin(pitch);
@@ -54,9 +53,7 @@ export function anchorRotation(view, anchor, x, y, scale = view.scale) {
       const hi = Math.min(HALF, HALF - offset);
       if (lo > hi) continue;
       const pitch =
-        radius < 1e-14
-          ? clamp(oldPitch, lo, hi)
-          : clamp(want - offset, lo, hi);
+        radius < 1e-14 ? clamp(oldPitch, lo, hi) : clamp(want - offset, lo, hi);
       const py = radius * Math.sin(pitch + offset);
       const error = (px - u) ** 2 + (py - v) ** 2;
       const motion = (yaw - oldYaw) ** 2 + (pitch - oldPitch) ** 2;

@@ -3,16 +3,33 @@
 // every outside run collapses to a walk along the (padded) cone boundary, in
 // the winding direction that preserves the polygon's interior side. Source
 // geometry and Quadstream topology are never modified.
-import { isCapVisible, lonLatToVec, computeFeatureCap } from "./spherical-cull.js";
+import {
+  isCapVisible,
+  lonLatToVec,
+  computeFeatureCap,
+} from "./spherical-cull.js";
 import type { SphericalCap, SphericalViewCone } from "./spherical-cull.js";
 import type { UnitVector } from "./spherical-geometry.js";
-import type { Feature, FeatureCollection, Geometry, Position } from "./types.js";
+import type {
+  Feature,
+  FeatureCollection,
+  Geometry,
+  Position,
+} from "./types.js";
 
 export interface SphericalClipWindow extends SphericalViewCone {
-  cx: number; cy: number; cz: number; radius: number;
-  cosR: number; sinR: number;
-  ux: number; uy: number; uz: number;
-  bx: number; by: number; bz: number;
+  cx: number;
+  cy: number;
+  cz: number;
+  radius: number;
+  cosR: number;
+  sinR: number;
+  ux: number;
+  uy: number;
+  uz: number;
+  bx: number;
+  by: number;
+  bz: number;
 }
 interface RingInfo {
   ring: Position[];
@@ -20,21 +37,34 @@ interface RingInfo {
   xyz: Float64Array;
   cap: SphericalCap;
 }
-interface Piece { pts: Position[]; from: number; to: number }
+interface Piece {
+  pts: Position[];
+  from: number;
+  to: number;
+}
 type RingResult =
   | { status: "away" | "wraps" }
   | { status: "inside"; ring: Position[] }
   | { status: "clipped"; rings: Position[][] };
-interface ClipWork { classified: number; inside: number; outside: number }
-interface FeatureInfo { cap: SphericalCap; ring: (pi: number, ri: number) => RingInfo }
+interface ClipWork {
+  classified: number;
+  inside: number;
+  outside: number;
+}
+interface FeatureInfo {
+  cap: SphericalCap;
+  ring: (pi: number, ri: number) => RingInfo;
+}
 export interface SphericalClipStats {
   features: number;
   rings: { kept: number; clipped: number; wrapped: number; dropped: number };
   vertices: number;
   stream: ClipWork;
 }
-export interface SphericalClipResult { geojson: FeatureCollection; stats: SphericalClipStats }
-
+export interface SphericalClipResult {
+  geojson: FeatureCollection;
+  stats: SphericalClipStats;
+}
 
 const DEG = 180 / Math.PI;
 const TAU = Math.PI * 2;
@@ -47,10 +77,21 @@ const CAP_MARGIN_RAD = 0.02;
 const EXTERIOR = -1;
 const HOLE = 1;
 
-export function clipWindow(cx: number, cy: number, cz: number, radius: number): SphericalClipWindow {
-  if (!Number.isFinite(radius) || radius < 0 || radius >= Math.PI / 2 ||
-      !Number.isFinite(cx) || !Number.isFinite(cy) || !Number.isFinite(cz) ||
-      Math.abs(Math.hypot(cx, cy, cz) - 1) > 1e-9)
+export function clipWindow(
+  cx: number,
+  cy: number,
+  cz: number,
+  radius: number,
+): SphericalClipWindow {
+  if (
+    !Number.isFinite(radius) ||
+    radius < 0 ||
+    radius >= Math.PI / 2 ||
+    !Number.isFinite(cx) ||
+    !Number.isFinite(cy) ||
+    !Number.isFinite(cz) ||
+    Math.abs(Math.hypot(cx, cy, cz) - 1) > 1e-9
+  )
     throw new Error("Expected a unit center and clipping radius in [0, pi/2)");
   const ex: UnitVector = Math.abs(cz) < 0.9 ? [0, 0, 1] : [1, 0, 0],
     d = ex[0] * cx + ex[1] * cy + ex[2] * cz;
@@ -109,7 +150,13 @@ function azimuth(w: SphericalClipWindow, x: number, y: number, z: number) {
 const mod = (a: number) => ((a % TAU) + TAU) % TAU;
 
 // Points strictly between two boundary azimuths, walking in `side` direction.
-function walk(w: SphericalClipWindow, from: number, to: number, side: number, out: Position[]) {
+function walk(
+  w: SphericalClipWindow,
+  from: number,
+  to: number,
+  side: number,
+  out: Position[],
+) {
   const delta = mod(side < 0 ? from - to : to - from);
   if (delta < 1e-9 || delta > TAU - 1e-9) return;
   const steps = Math.ceil(delta / WALK_STEP_RAD);
@@ -117,7 +164,10 @@ function walk(w: SphericalClipWindow, from: number, to: number, side: number, ou
     out.push(circlePoint(w, from + (side * delta * k) / steps));
 }
 
-export function circleRing(w: SphericalClipWindow, side = EXTERIOR): Position[] {
+export function circleRing(
+  w: SphericalClipWindow,
+  side = EXTERIOR,
+): Position[] {
   const n = Math.ceil(TAU / WALK_STEP_RAD),
     ring: Position[] = [];
   for (let k = 0; k < n; k++) ring.push(circlePoint(w, (side * TAU * k) / n));
@@ -128,7 +178,15 @@ export function circleRing(w: SphericalClipWindow, side = EXTERIOR): Position[] 
 // Crossings of the minor arc A->B with the window boundary, in travel order
 // along the canonical (lexicographically ordered) orientation so shared
 // borders produce bit-identical points on both neighbours.
-function arcCrossings(w: SphericalClipWindow, a0: number, a1: number, a2: number, b0: number, b1: number, b2: number) {
+function arcCrossings(
+  w: SphericalClipWindow,
+  a0: number,
+  a1: number,
+  a2: number,
+  b0: number,
+  b1: number,
+  b2: number,
+) {
   const swapped = a0 > b0 || (a0 === b0 && (a1 > b1 || (a1 === b1 && a2 > b2)));
   let ax = a0,
     ay = a1,
@@ -168,8 +226,16 @@ function arcCrossings(w: SphericalClipWindow, a0: number, a1: number, a2: number
     tx = ny * pz - nz * py,
     ty = nz * px - nx * pz,
     tz = nx * py - ny * px,
-    first: UnitVector = [px * ct - tx * st, py * ct - ty * st, pz * ct - tz * st],
-    second: UnitVector = [px * ct + tx * st, py * ct + ty * st, pz * ct + tz * st];
+    first: UnitVector = [
+      px * ct - tx * st,
+      py * ct - ty * st,
+      pz * ct - tz * st,
+    ],
+    second: UnitVector = [
+      px * ct + tx * st,
+      py * ct + ty * st,
+      pz * ct + tz * st,
+    ];
   const L = Math.atan2(sinL, ax * bx + ay * by + az * bz),
     alpha = (q: UnitVector) =>
       Math.atan2(
@@ -182,7 +248,11 @@ function arcCrossings(w: SphericalClipWindow, a0: number, a1: number, a2: number
 }
 
 // Outside -> outside edge: both crossings must lie on the arc.
-function throughCrossings(w: SphericalClipWindow, A: UnitVector, B: UnitVector): [UnitVector, UnitVector] | null {
+function throughCrossings(
+  w: SphericalClipWindow,
+  A: UnitVector,
+  B: UnitVector,
+): [UnitVector, UnitVector] | null {
   const c = arcCrossings(w, A[0], A[1], A[2], B[0], B[1], B[2]);
   if (!c) return null;
   const eps = 1e-12,
@@ -204,7 +274,11 @@ function entryPoint(w: SphericalClipWindow, A: UnitVector, B: UnitVector) {
 
 export function ringInfo(ring: Position[]): RingInfo {
   let n = ring.length;
-  if (n > 1 && ring[0]![0] === ring[n - 1]![0] && ring[0]![1] === ring[n - 1]![1])
+  if (
+    n > 1 &&
+    ring[0]![0] === ring[n - 1]![0] &&
+    ring[0]![1] === ring[n - 1]![1]
+  )
     n--;
   const xyz = new Float64Array(n * 3);
   let sx = 0,
@@ -281,13 +355,20 @@ function windingAroundCenter(w: SphericalClipWindow, info: RingInfo) {
 const NEAR = 2e-9,
   SORT_MIN = 12;
 
-function pairDelta(p: Pick<Piece, "from" | "to">, q: Pick<Piece, "from" | "to">, side: number) {
+function pairDelta(
+  p: Pick<Piece, "from" | "to">,
+  q: Pick<Piece, "from" | "to">,
+  side: number,
+) {
   const delta = mod(side < 0 ? p.to - q.from : q.from - p.to);
   return delta > TAU - 1e-9 ? 0 : delta;
 }
 
 /** Reference O(c^2) pairing: the first entry met walking from each exit. */
-export function pairPiecesReference(pieces: Pick<Piece, "from" | "to">[], side = EXTERIOR): number[] {
+export function pairPiecesReference(
+  pieces: Pick<Piece, "from" | "to">[],
+  side = EXTERIOR,
+): number[] {
   return pieces.map((p) => {
     let best = 0,
       bestDelta = Infinity;
@@ -307,11 +388,16 @@ export function pairPiecesReference(pieces: Pick<Piece, "from" | "to">[], side =
  * searches its neighbourhood and the exact reference delta rule decides among
  * the few candidates, so ties, wraparound and epsilon behave identically.
  */
-export function pairPieces(pieces: Pick<Piece, "from" | "to">[], side = EXTERIOR): number[] {
+export function pairPieces(
+  pieces: Pick<Piece, "from" | "to">[],
+  side = EXTERIOR,
+): number[] {
   const c = pieces.length;
   if (c < SORT_MIN) return pairPiecesReference(pieces, side);
   const keys = pieces.map((q) => mod(q.from)),
-    order = Array.from(keys.keys()).sort((a, b) => keys[a]! - keys[b]! || a - b),
+    order = Array.from(keys.keys()).sort(
+      (a, b) => keys[a]! - keys[b]! || a - b,
+    ),
     sorted = order.map((i) => keys[i]!);
   const lowerBound = (v: number) => {
     let lo = 0,
@@ -369,7 +455,11 @@ export function pairPieces(pieces: Pick<Piece, "from" | "to">[], side = EXTERIOR
  *   region (hole) covers the whole window
  * - away: no crossing and the window is on the other side
  */
-export function clipRingReference(w: SphericalClipWindow, info: RingInfo, side = EXTERIOR): RingResult {
+export function clipRingReference(
+  w: SphericalClipWindow,
+  info: RingInfo,
+  side = EXTERIOR,
+): RingResult {
   const { xyz, n, ring } = info;
   if (n < 3) return { status: "away" };
   const inside = new Uint8Array(n);
@@ -383,7 +473,11 @@ export function clipRingReference(w: SphericalClipWindow, info: RingInfo, side =
     if (!inside[i] && start < 0) start = i;
   }
   if (start < 0) return { status: "inside", ring };
-  const vec = (i: number): UnitVector => [xyz[i * 3]!, xyz[i * 3 + 1]!, xyz[i * 3 + 2]!],
+  const vec = (i: number): UnitVector => [
+      xyz[i * 3]!,
+      xyz[i * 3 + 1]!,
+      xyz[i * 3 + 2]!,
+    ],
     pieces: Piece[] = [];
   let cur: Piece | null = null;
   for (let k = 0; k < n; k++) {
@@ -417,7 +511,12 @@ export function clipRingReference(w: SphericalClipWindow, info: RingInfo, side =
  * prefix is known when the traversal wraps. No per-ring visibility bitmap.
  * Keep outside endpoints only long enough to test their actual joining edge.
  */
-export function clipRing(w: SphericalClipWindow, info: RingInfo, side = EXTERIOR, work?: ClipWork): RingResult {
+export function clipRing(
+  w: SphericalClipWindow,
+  info: RingInfo,
+  side = EXTERIOR,
+  work?: ClipWork,
+): RingResult {
   const { xyz, n, ring } = info;
   if (n < 3) return { status: "away" };
   const inside = (i: number) =>
@@ -431,7 +530,11 @@ export function clipRing(w: SphericalClipWindow, info: RingInfo, side = EXTERIOR
     if (start < n) work.outside++;
   }
   if (start === n) return { status: "inside", ring };
-  const vec = (i: number): UnitVector => [xyz[i * 3]!, xyz[i * 3 + 1]!, xyz[i * 3 + 2]!],
+  const vec = (i: number): UnitVector => [
+      xyz[i * 3]!,
+      xyz[i * 3 + 1]!,
+      xyz[i * 3 + 2]!,
+    ],
     pieces: Piece[] = [];
   let previousInside = false,
     cur: Piece | null = null;
@@ -466,7 +569,12 @@ export function clipRing(w: SphericalClipWindow, info: RingInfo, side = EXTERIOR
   return assemblePieces(w, info, side, pieces);
 }
 
-function assemblePieces(w: SphericalClipWindow, info: RingInfo, side: number, pieces: Piece[]): RingResult {
+function assemblePieces(
+  w: SphericalClipWindow,
+  info: RingInfo,
+  side: number,
+  pieces: Piece[],
+): RingResult {
   if (!pieces.length) {
     const total = windingAroundCenter(w, info);
     return {
@@ -504,20 +612,29 @@ function polygonsOf(geometry: Geometry): Position[][][] {
 
 // Ring vectors are built on first use: features whose cap misses the window
 // never pay the per-vertex trigonometry.
-export function buildFeatureInfo(feature: Feature, cap = computeFeatureCap(feature)): FeatureInfo {
+export function buildFeatureInfo(
+  feature: Feature,
+  cap = computeFeatureCap(feature),
+): FeatureInfo {
   const polys = polygonsOf(feature.geometry),
     built = polys.map((poly) => new Array<RingInfo | undefined>(poly.length));
   return {
     cap,
-    ring: (pi: number, ri: number) => (built[pi]![ri] ??= ringInfo(polys[pi]![ri]!)),
+    ring: (pi: number, ri: number) =>
+      (built[pi]![ri] ??= ringInfo(polys[pi]![ri]!)),
   };
 }
 
 /** Uncached clip of a collection to an explicit window. */
-export function clipToWindow(geojson: FeatureCollection, w: SphericalClipWindow): SphericalClipResult {
+export function clipToWindow(
+  geojson: FeatureCollection,
+  w: SphericalClipWindow,
+): SphericalClipResult {
   for (const f of geojson.features)
     if (f.geometry.type !== "Polygon" && f.geometry.type !== "MultiPolygon")
-      throw new Error("Spherical clipping supports Polygon and MultiPolygon only");
+      throw new Error(
+        "Spherical clipping supports Polygon and MultiPolygon only",
+      );
   const infos: FeatureInfo[] = [];
   return clipFeatureCollection(
     geojson,
@@ -542,7 +659,11 @@ export function countVertices(geojson: FeatureCollection | null | undefined) {
 }
 
 /** Clip every feature to the window; unchanged features keep their identity. */
-export function clipFeatureCollection(geojson: FeatureCollection, w: SphericalClipWindow, getInfo: (i: number, feature: Feature) => FeatureInfo): SphericalClipResult {
+export function clipFeatureCollection(
+  geojson: FeatureCollection,
+  w: SphericalClipWindow,
+  getInfo: (i: number, feature: Feature) => FeatureInfo,
+): SphericalClipResult {
   const stats = {
     features: 0,
     rings: { kept: 0, clipped: 0, wrapped: 0, dropped: 0 },
@@ -615,9 +736,10 @@ export function clipFeatureCollection(geojson: FeatureCollection, w: SphericalCl
       const type = feature.geometry.type;
       features.push({
         ...feature,
-        geometry: type === "Polygon"
-          ? { type, coordinates: outPolys[0]! }
-          : { type: "MultiPolygon", coordinates: outPolys },
+        geometry:
+          type === "Polygon"
+            ? { type, coordinates: outPolys[0]! }
+            : { type: "MultiPolygon", coordinates: outPolys },
       });
     }
     for (const poly of outPolys)
@@ -625,4 +747,3 @@ export function clipFeatureCollection(geojson: FeatureCollection, w: SphericalCl
   }
   return { geojson: { type: "FeatureCollection", features }, stats };
 }
-

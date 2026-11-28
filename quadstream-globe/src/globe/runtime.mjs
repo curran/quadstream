@@ -15,7 +15,11 @@ import { createGlobeRenderer } from "../../../examples/globe/map.mjs";
 import { createMinimapRenderer } from "../../../examples/globe/minimap.mjs";
 import { GlobeWorkerClient } from "../../../examples/globe/client.mjs";
 import { fixture } from "../../../examples/globe/fixture.mjs";
-import { createRegionalLayers, regionalConfig, loadRegionalCatalog } from "../../../examples/globe/regional.mjs";
+import {
+  createRegionalLayers,
+  regionalConfig,
+  loadRegionalCatalog,
+} from "../../../examples/globe/regional.mjs";
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
 import * as map from "../../../examples/globe/map.mjs";
@@ -25,13 +29,24 @@ export function mountGlobe(root) {
   const lifetime = new AbortController();
   const listen = (target, type, fn) =>
     target.addEventListener(type, fn, { signal: lifetime.signal });
-  const asset = (path) => new URL(import.meta.env.BASE_URL + "globe-data/" + path, location.origin).href;
+  const asset = (path) =>
+    new URL(import.meta.env.BASE_URL + "globe-data/" + path, location.origin)
+      .href;
   const configs = (catalog = []) => {
     const files = new Map(catalog.map((r) => [r.id, r.file]));
-    return regionalConfig({ catalog, counties: new URLSearchParams(location.search).get("counties") !== "0" }).map((config) => ({
+    return regionalConfig({
+      catalog,
+      counties: new URLSearchParams(location.search).get("counties") !== "0",
+    }).map((config) => ({
       ...config,
-      url: config.international ? asset("regional/" + files.get(config.id)) :
-        asset("us/" + (config.id === "us-states" ? "states-10m.json" : "counties-10m.json")),
+      url: config.international
+        ? asset("regional/" + files.get(config.id))
+        : asset(
+            "us/" +
+              (config.id === "us-states"
+                ? "states-10m.json"
+                : "counties-10m.json"),
+          ),
     }));
   };
   const $ = (id) => root.querySelector(`#${id}`),
@@ -46,9 +61,7 @@ export function mountGlobe(root) {
     cull: true,
     clip: clipEnabled,
   });
-  const drawMinimap = miniCtx
-    ? createMinimapRenderer(d3, miniCtx)
-    : null;
+  const drawMinimap = miniCtx ? createMinimapRenderer(d3, miniCtx) : null;
   const state = {
     rotation: [0, -20, 0],
     interacting: false,
@@ -122,9 +135,16 @@ export function mountGlobe(root) {
     onChange: schedule,
   });
   if (new URLSearchParams(location.search).get("international") !== "0") {
-    loadRegionalCatalog(() => fetch(asset("regional/catalog.json"), { signal: lifetime.signal })).then((catalog) => {
-      if (!disposed) regional.addConfigs(configs(catalog));
-    }).catch((error) => { if (!disposed) console.warn("International boundaries unavailable", error); });
+    loadRegionalCatalog(() =>
+      fetch(asset("regional/catalog.json"), { signal: lifetime.signal }),
+    )
+      .then((catalog) => {
+        if (!disposed) regional.addConfigs(configs(catalog));
+      })
+      .catch((error) => {
+        if (!disposed)
+          console.warn("International boundaries unavailable", error);
+      });
   }
   let drawStats = null;
   let requests = 0,
@@ -189,8 +209,12 @@ export function mountGlobe(root) {
           : "—"),
       "Ring stream (last clip build): " +
         (drawStats?.stream
-          ? drawStats.stream.classified + " classified, " + drawStats.stream.inside +
-            " inside, " + drawStats.stream.outside + " outside"
+          ? drawStats.stream.classified +
+            " classified, " +
+            drawStats.stream.inside +
+            " inside, " +
+            drawStats.stream.outside +
+            " outside"
           : "—"),
       "Atlas payload: " + atlasBytes + " bytes | geometry queries: " + requests,
       "Regional layers: " +
@@ -309,7 +333,10 @@ export function mountGlobe(root) {
       const minimapGeojson = minimapFrame?.geojson ?? null;
       const overlays = regional.update(state, {
         enabled:
-          ready && Boolean(activeGeojson) && !selectedFile && sourceName !== "fixture",
+          ready &&
+          Boolean(activeGeojson) &&
+          !selectedFile &&
+          sourceName !== "fixture",
         original: $("mode").value === "original",
         level: targetLevelForView(),
       });
@@ -413,7 +440,10 @@ export function mountGlobe(root) {
   observer.observe(canvas);
   resize();
   function reset() {
-    update({ rotation: [0, -20, 0], scale: state.initialScale }, { near: true });
+    update(
+      { rotation: [0, -20, 0], scale: state.initialScale },
+      { near: true },
+    );
     gesture.rebase();
   }
   listen(canvas, "keydown", (e) => {
@@ -445,7 +475,7 @@ export function mountGlobe(root) {
   });
   const detachKeyboard = attachKeyboardControls(window, keyboard);
   // Deterministic hook for browser tests: jump the camera without animation.
-  const debug = globalThis.globeDebug = {
+  const debug = (globalThis.globeDebug = {
     testModules: { d3, topojson, map, geometry },
     setView({ rotation, scale }) {
       camera.brake();
@@ -459,7 +489,7 @@ export function mountGlobe(root) {
       syncState();
       schedule();
     },
-  };
+  });
   function error(e) {
     setStatus("Geometry error: " + (e.message ?? e), "error");
     schedule();
@@ -490,10 +520,9 @@ export function mountGlobe(root) {
         source = fixture;
         atlasBytes = 0;
       } else {
-        const r = await fetch(
-          asset("world/" + sourceName + ".json"),
-          { signal: abort.signal },
-        );
+        const r = await fetch(asset("world/" + sourceName + ".json"), {
+          signal: abort.signal,
+        });
         if (!r.ok) throw new Error("Atlas HTTP " + r.status);
         const text = await r.text();
         atlasBytes = new TextEncoder().encode(text).length;
@@ -517,7 +546,10 @@ export function mountGlobe(root) {
       schedule();
       setStatus("Preparing spherical geometry…", "loading");
       const current = new GlobeWorkerClient(
-        new Worker(new URL("./worker.mjs", import.meta.url), { type: "module", name: "quadstream-geometry" }),
+        new Worker(new URL("./worker.mjs", import.meta.url), {
+          type: "module",
+          name: "quadstream-geometry",
+        }),
       );
       client = current;
       const result = await current.init(original);
@@ -557,7 +589,8 @@ export function mountGlobe(root) {
       if (id !== epoch || disposed) return;
       minimapFrame = mini;
       ready = true;
-      if ($("mode").value === "original") setStatus("Original geometry", "ready");
+      if ($("mode").value === "original")
+        setStatus("Original geometry", "ready");
       else requestLevel();
       schedule();
     } catch (e) {
@@ -638,29 +671,31 @@ export function mountGlobe(root) {
   });
   {
     const params = new URLSearchParams(location.search),
-      requested = params.get("fixture") === "1" ? "fixture" : params.get("atlas");
+      requested =
+        params.get("fixture") === "1" ? "fixture" : params.get("atlas");
     if ([...$("atlas").options].some((o) => o.value === requested)) {
       $("atlas").value = requested;
       sourceName = requested;
     }
   }
   function dispose() {
-      if (disposed) return;
-      disposed = true;
-      lifetime.abort();
-      if (globalThis.globeDebug === debug) delete globalThis.globeDebug;
-      epoch++;
-      abort?.abort();
-      regional.reset();
-      latest?.dispose();
-      client?.dispose();
-      detach();
-      detachKeyboard();
-      observer.disconnect();
-      if (raf) cancelAnimationFrame(raf);
+    if (disposed) return;
+    disposed = true;
+    lifetime.abort();
+    if (globalThis.globeDebug === debug) delete globalThis.globeDebug;
+    epoch++;
+    abort?.abort();
+    regional.reset();
+    latest?.dispose();
+    client?.dispose();
+    detach();
+    detachKeyboard();
+    observer.disconnect();
+    if (raf) cancelAnimationFrame(raf);
   }
-  listen(window, "pagehide", (e) => { if (!e.persisted) dispose(); });
+  listen(window, "pagehide", (e) => {
+    if (!e.persisted) dispose();
+  });
   void init();
   return dispose;
-
 }

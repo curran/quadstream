@@ -198,8 +198,32 @@ test("GlobeWorkerClient transfers ArrayBuffers and reconstructs frame.geojson fr
 });
 
 test("malformed wire data and unsupported geometry are rejected", () => {
-  const original={type:"FeatureCollection",features:[{type:"Feature",properties:{},geometry:{type:"Polygon",coordinates:[]}}]};
-  assert.throws(()=>unpackGeometry(original,new Float64Array(),new Int32Array([1,-1])));
-  assert.throws(()=>unpackGeometry(original,new Float64Array([1]),new Int32Array([1,0])));
-  assert.throws(()=>packGeometry({type:"FeatureCollection",features:[{type:"Feature",properties:{},geometry:{type:"LineString",coordinates:[]}}]}));
+  const original = {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {},
+        geometry: { type: "Polygon", coordinates: [] },
+      },
+    ],
+  };
+  assert.throws(() =>
+    unpackGeometry(original, new Float64Array(), new Int32Array([1, -1])),
+  );
+  assert.throws(() =>
+    unpackGeometry(original, new Float64Array([1]), new Int32Array([1, 0])),
+  );
+  assert.throws(() =>
+    packGeometry({
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: [] },
+        },
+      ],
+    }),
+  );
 });

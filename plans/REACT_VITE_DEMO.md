@@ -41,7 +41,7 @@ At each rendered camera snapshot:
 
 1. Use exactly the geography's orthographic rotation, scale and translation, in CSS pixels. Compute zoom factor from scale / initialScale.
 2. Population threshold = basePopulationThreshold / zoomFactor^1.5. Apply the strict greater-than comparison. Filter to the visible hemisphere using D3 geoPath point visibility, then to the inclusive viewport bounds.
-3. Sort visible cities by descending population, maintaining source order on ties, and take the configured maximum candidate count *before* collision rejection.
+3. Sort visible cities by descending population, maintaining source order on ties, and take the configured maximum candidate count _before_ collision rejection.
 4. Use D3 scaleSqrt with domain zero to the maximum population of the full dataset, range zero to maxFontSize * sqrt(zoomFactor). Padding = baseLabelPadding / sqrt(zoomFactor).
 5. Measure each candidate's text with the reference sans-serif font metrics. Build centered padded screen-space bounding boxes. Greedily accept in population order when RBush reports no overlap; insert accepted boxes only. Preserve reference edge-touch semantics. Do not refill the candidate cap after rejection.
 6. Render keyed SVG text by stable ID with centered anchor/baseline, font size, configured fill and outline colors, round stroke join, paint-order stroke, and outline width = fontSize * strokeWidthScalingFactor. Overlay is pointer-transparent and follows the same viewport as the Canvas.

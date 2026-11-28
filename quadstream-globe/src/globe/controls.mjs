@@ -1,7 +1,8 @@
 export function mountControls(root) {
   const lifetime = new AbortController();
   const get = (id) => root.querySelector(`#${id}`);
-  const listen = (target, type, fn) => target.addEventListener(type, fn, { signal: lifetime.signal });
+  const listen = (target, type, fn) =>
+    target.addEventListener(type, fn, { signal: lifetime.signal });
   const controls = get("controls");
   const panel = get("panel");
   const toggle = get("settings-toggle");
@@ -43,12 +44,25 @@ export function mountControls(root) {
 
   function updateStatus() {
     const phase = status.dataset.phase;
-    const fallback = /fallback|invalid coarse geometry/i.test(status.textContent);
-    const kind = phase === "error" ? "error" : phase === "ready"
-      ? (fallback ? "warning" : "ready") : "loading";
+    const fallback = /fallback|invalid coarse geometry/i.test(
+      status.textContent,
+    );
+    const kind =
+      phase === "error"
+        ? "error"
+        : phase === "ready"
+          ? fallback
+            ? "warning"
+            : "ready"
+          : "loading";
     indicator.hidden = kind === "ready";
     indicator.dataset.kind = kind;
-    indicator.textContent = { error: "Error", warning: "Warning", loading: "Loading…", ready: "" }[kind];
+    indicator.textContent = {
+      error: "Error",
+      warning: "Warning",
+      loading: "Loading…",
+      ready: "",
+    }[kind];
     indicator.title = status.textContent;
     retry.hidden = kind !== "error" && kind !== "warning";
   }
@@ -62,5 +76,8 @@ export function mountControls(root) {
   });
   updateStatus();
 
-  return () => { lifetime.abort(); observer.disconnect(); };
+  return () => {
+    lifetime.abort();
+    observer.disconnect();
+  };
 }

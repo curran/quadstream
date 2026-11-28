@@ -1,4 +1,9 @@
-import type { Feature, FeatureCollection, Geometry, Position } from "./types.js";
+import type {
+  Feature,
+  FeatureCollection,
+  Geometry,
+  Position,
+} from "./types.js";
 import type { UnitVector } from "./spherical-geometry.js";
 
 /** Unit-vector center and angular radius, in radians. */
@@ -59,8 +64,11 @@ export function computeFeatureCap(feature: Feature): SphericalCap {
   });
   // The original algorithm only visits polygon rings. Non-polygons must
   // remain visible rather than being treated as a point at (0, 0).
-  if (!count && feature.geometry.type !== "Polygon" &&
-      feature.geometry.type !== "MultiPolygon")
+  if (
+    !count &&
+    feature.geometry.type !== "Polygon" &&
+    feature.geometry.type !== "MultiPolygon"
+  )
     return { cx: 1, cy: 0, cz: 0, radiusRad: Math.PI };
   if (!count) return { cx: 1, cy: 0, cz: 0, radiusRad: 0 };
   const len = Math.hypot(sx, sy, sz);
@@ -71,7 +79,9 @@ export function computeFeatureCap(feature: Feature): SphericalCap {
   let minDot = 1;
   for (let i = 0; i < count; i++) {
     const dot =
-      cx * scratch[i * 3]! + cy * scratch[i * 3 + 1]! + cz * scratch[i * 3 + 2]!;
+      cx * scratch[i * 3]! +
+      cy * scratch[i * 3 + 1]! +
+      cz * scratch[i * 3 + 2]!;
     if (dot < minDot) minDot = dot;
   }
   const maxAngle = Math.acos(Math.max(-1, Math.min(1, minDot)));
@@ -87,13 +97,15 @@ export function computeFeatureCaps(geojson: FeatureCollection): SphericalCap[] {
   return (geojson?.features ?? []).map(computeFeatureCap);
 }
 
-export function isCapVisible(cap: SphericalCap, cone: SphericalViewCone): boolean {
+export function isCapVisible(
+  cap: SphericalCap,
+  cone: SphericalViewCone,
+): boolean {
   const maxAngle = cap.radiusRad + cone.viewRadius;
   if (maxAngle >= Math.PI) return true;
   const dot = cap.cx * cone.vx + cap.cy * cone.vy + cap.cz * cone.vz;
   return dot >= Math.cos(maxAngle);
 }
-
 
 /** Filter using an explicit view cone. Supplied caps must match this frame
  * by index and conservatively enclose its geometry. Inputs are not modified.
