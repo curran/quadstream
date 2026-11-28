@@ -86,3 +86,6 @@ export {
 export type { SphericalCap, SphericalViewCone } from "./spherical-cull.js";
 export { clipWindow, clipToWindow } from "./spherical-clip.js";
 export type { SphericalClipWindow, SphericalClipStats, SphericalClipResult } from "./spherical-clip.js";
+
+export { createSphericalViewClipper } from "./spherical-view-clipper.js";
+export type { SphericalViewClipperOptions, CachedSphericalClipResult } from "./spherical-view-clipper.js";
