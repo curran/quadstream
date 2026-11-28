@@ -11,7 +11,7 @@ import {
   createGlobeGeometry,
   decodeCountries,
 } from "../examples/globe/geometry.mjs";
-import { repairGeometry, repairRing } from "../examples/globe/repair.mjs";
+import { repairGeometry, repairRing } from "../dist/index.js";
 
 const require = createRequire(import.meta.url);
 const d3 = require("d3"),
