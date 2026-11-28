@@ -98,3 +98,6 @@ export type { SphericalBuildGroup, RobustSphericalOptions } from "./spherical-ro
 
 export { packGeometry, unpackGeometry } from "./geometry-wire.js";
 export type { PackedGeometry } from "./geometry-wire.js";
+
+export { createSphericalViewClipper } from "./spherical-view-clipper.js";
+export type { SphericalViewClipperOptions, CachedSphericalClipResult } from "./spherical-view-clipper.js";
