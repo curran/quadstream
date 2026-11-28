@@ -172,8 +172,7 @@ export interface SphericalQueryOptions {
   /**
    * "restore" (default) keeps every polygon. "drop" hides each polygon (and
    * hole) whose ring has fewer than 3 distinct quadtree-activated vertices at
-   * the query level: the sparse quadtree is the single authority on which
-   * polygons are representable at a level.
+   * the query level, except for explicitly retained polygon exteriors.
    */
   collapsedRingPolicy?: CollapsedRingPolicy;
 }
@@ -200,6 +199,12 @@ function activationLevel(level: number, random: number): number {
     ? 0
     : level - random + (random === 1 ? ACTIVATION_EPSILON : 0);
 }
+/** Optional preprocessing policy for explicitly retained polygon exteriors. */
+export interface SphericalBuildOptions {
+  maxLevel?: number;
+  /** Feature ID to source polygon index; only the selected exterior is visible at level zero. */
+  alwaysVisiblePolygons?: ReadonlyMap<string, number>;
+}
 /** Geographic in-memory dataset. No planar viewport index or v1 partition serialization. */
 export class SphericalQuadstreamDataset {
   readonly coordinateMode = "spherical-d3" as const;
@@ -213,14 +218,15 @@ export class SphericalQuadstreamDataset {
   /**
    * Per feature and path: the lowest level at which the closed ring has 3
    * distinct vertices activated by the sparse quadtree (the third-smallest
-   * vertex activation level), or Infinity when it never does. Open paths are 0.
+   * vertex activation level), or Infinity when it never does. Open paths and
+   * explicitly retained exteriors are 0.
    */
   readonly ringActivation: readonly (readonly number[])[];
   private readonly source: FeatureCollection;
   private readonly signatures: SphericalPolygonSignature[][];
   constructor(
     input: FeatureCollection,
-    { maxLevel = 20 }: { maxLevel?: number } = {},
+    { maxLevel = 20, alwaysVisiblePolygons }: SphericalBuildOptions = {},
   ) {
     this.source = sourceGeometry(input);
     this.signatures = this.source.features.map((f) =>
@@ -245,9 +251,17 @@ export class SphericalQuadstreamDataset {
     this.arcTrees = prepared.trees;
     this.activationLevels = prepared.activationLevels;
     this.retainedVertices = prepared.retainedVertices;
-    this.ringActivation = this.topology.features.map((f) =>
-      f.paths.map((path) => this.pathActivation(path)),
-    );
+    this.ringActivation = this.topology.features.map((f) => {
+      const polygon = alwaysVisiblePolygons?.get(f.id);
+      const exterior =
+        polygon !== undefined &&
+        (f.geometryType === "Polygon" || f.geometryType === "MultiPolygon")
+          ? f.groups[polygon]?.[0]
+          : undefined;
+      return f.paths.map((path, i) =>
+        i === exterior ? 0 : this.pathActivation(path),
+      );
+    });
   }
   private pathActivation(path: Topology["features"][number]["paths"][number]) {
     if (!path.closed) return 0;
@@ -413,7 +427,7 @@ export class SphericalQuadstreamDataset {
 }
 export function buildSphericalQuadstream(
   input: FeatureCollection,
-  options?: { maxLevel?: number },
+  options?: SphericalBuildOptions,
 ): SphericalQuadstreamDataset {
   return new SphericalQuadstreamDataset(input, options);
 }
