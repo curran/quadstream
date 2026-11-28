@@ -95,3 +95,6 @@ export type { LatestGeometryOptions } from "./lod-scheduler.js";
 
 export { sphericalConnectedComponents, buildRobustSphericalGroups } from "./spherical-robust-dataset.js";
 export type { SphericalBuildGroup, RobustSphericalOptions } from "./spherical-robust-dataset.js";
+
+export { packGeometry, unpackGeometry } from "./geometry-wire.js";
+export type { PackedGeometry } from "./geometry-wire.js";
