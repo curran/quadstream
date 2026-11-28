@@ -86,3 +86,6 @@ export {
 export type { SphericalCap, SphericalViewCone } from "./spherical-cull.js";
 export { clipWindow, clipToWindow } from "./spherical-clip.js";
 export type { SphericalClipWindow, SphericalClipStats, SphericalClipResult } from "./spherical-clip.js";
+
+export { repairRing, repairGeometry } from "./spherical-repair.js";
+export type { SphericalRepairOptions } from "./spherical-repair.js";
