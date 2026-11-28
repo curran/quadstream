@@ -2,6 +2,8 @@
 
 **Progressive, topology-aware, multiresolution geometry for the web.**
 
+Live demo: https://vizhub-studio.github.io/quadstream/
+
 <img width="981" height="964" alt="image" src="https://github.com/user-attachments/assets/1b54d21a-ea13-4cdf-b88c-6048b3e009dc" />
 
 Quadstream prepares geographic shapes at multiple levels of detail while
