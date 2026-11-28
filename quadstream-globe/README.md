@@ -4,8 +4,7 @@ Parallel implementation only; the root library and legacy globe remain authorita
 The migration plan is [here](../plans/REACT_VITE_DEMO.md).
 
 Use Node 26 for the app (the library retains its own Node support).
-From this directory, run `npm ci` once the generated lockfile has been committed
-(`npm install` for the initial bootstrap only), then:
+Install and build the root package first (`npm --prefix .. ci` and `npm --prefix .. run build` from this directory), then run `npm ci` in this directory. The app uses the root-pinned D3, TopoJSON, atlas data, and compiled geometry library.
 
 - `npm run dev` — isolated Vite development server.
 - `npm run check` — typecheck, lint, and unit tests with Node coverage.
@@ -32,5 +31,4 @@ browser build, hardware, fixtures, camera trace, viewport and fonts; retain
 raw timings and repeat runs to measure noise. Add instrumentation for actual
 frame time, input-to-frame latency, idle draws, worker and memory metrics, and
 label-off/on comparisons before asserting the plan's proposed thresholds.
-The existing root browser suite remains unchanged. This scaffold does not yet
-implement the globe, city overlay, or quantitative performance gates.
+The React app now mounts the legacy globe algorithms through a lifecycle adapter and uses ESM imports and Vite module workers. Both apps register the same 25 browser scenarios from `test/browser/globe-suite.mjs`; the Vite suite tests the production build under `/migration/` in Chromium and WebKit. The legacy entry point and core runtime are unchanged. City labels, full comparative benchmarks, and promotion remain subsequent phases. The regional catalog currently contains no international records; the app retains catalog support and US layers.
