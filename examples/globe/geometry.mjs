@@ -1,4 +1,4 @@
-import { buildSphericalQuadstream, canonicalLonLat } from "../../dist/index.js";
+import { buildSphericalQuadstream, canonicalLonLat, buildRobustSphericalGroups } from "../../dist/index.js";
 import { repairGeometry } from "./repair.mjs";
 // d3 and topojson-client are injected: Node tests use ESM; browser uses local UMD.
 const polys = (g) =>
@@ -163,47 +163,11 @@ export function d3Compatible(source, candidate, d3, full = false) {
   }
   return true;
 }
-// Partition into exact-coordinate-connected components only when the global
-// build rejects the source. Never independently simplify neighbors sharing a
-// vertex: every such connected component is kept together.
-function components(features) {
-  const parent = features.map((_, i) => i),
-    owner = new Map();
-  const root = (i) => {
-    while (parent[i] !== i) {
-      parent[i] = parent[parent[i]];
-      i = parent[i];
-    }
-    return i;
-  };
-  for (let i = 0; i < features.length; i++)
-    for (const p of polys(features[i].geometry))
-      for (const r of p)
-        for (const v of r) {
-          const k = key(v);
-          if (owner.has(k)) {
-            const a = root(i),
-              b = root(owner.get(k));
-            if (a !== b) parent[a] = b;
-          } else owner.set(k, i);
-        }
-  const groups = new Map();
-  for (let i = 0; i < features.length; i++) {
-    const k = root(i);
-    if (!groups.has(k)) groups.set(k, []);
-    groups.get(k).push(i);
-  }
-  return [...groups.values()];
-}
 export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
   const start = clock(),
     features = original.features,
-    sourceVertices = vertexCount(original),
-    all = features.map((_, i) => i),
-    // Working copies: sources the validator rejects are repaired (self-crossing
-    // loops cut out) so they can still be simplified.
-    work = [...features];
-  function build(indices) {
+    sourceVertices = vertexCount(original);
+  function build(indices, work) {
     try {
       const input = {
         type: "FeatureCollection",
@@ -231,39 +195,9 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
       return { indices, error: String(e.message ?? e) };
     }
   }
-  let groups = [build(all)];
-  if (groups[0].error && features.length > 1) {
-    try {
-      const singletonGroups = all.map((i) => {
-          let g = build([i]);
-          if (g.error) {
-            const fixed = repairGeometry(features[i].geometry);
-            if (fixed.changed) {
-              work[i] = { ...features[i], geometry: fixed.geometry };
-              const retry = build([i]);
-              if (retry.error) work[i] = features[i];
-              else g = retry;
-            }
-          }
-          return g;
-        }),
-        invalid = singletonGroups.filter((g) => g.error),
-        valid = all.filter((i) => !singletonGroups[i].error);
-      groups = [...(valid.length ? [build(valid)] : []), ...invalid];
-      if (groups.some((g) => g.error && g.indices.length > 1))
-        groups = components(features).map(build);
-    } catch (error) {
-      void error;
-    }
-  }
-  const buildMs = clock() - start,
-    cache = new Map();
-  const unavailable = groups
-    .filter((g) => g.error)
-    .reduce((n, g) => n + g.indices.length, 0);
-  const reasons = [
-    ...new Set(groups.filter((g) => g.error).map((g) => g.error)),
-  ].slice(0, 4);
+  const { groups, working: work, unavailable, reasons: allReasons } =
+    buildRobustSphericalGroups(original, { build, repair: repairGeometry });
+  const buildMs = clock() - start, cache = new Map(), reasons = allReasons.slice(0, 4);
   function cacheHit(key) {
     if (!cache.has(key)) return null;
     const hit = cache.get(key);
