@@ -86,3 +86,6 @@ export {
 export type { SphericalCap, SphericalViewCone } from "./spherical-cull.js";
 export { clipWindow, clipToWindow } from "./spherical-clip.js";
 export type { SphericalClipWindow, SphericalClipStats, SphericalClipResult } from "./spherical-clip.js";
+
+export { packGeometry, unpackGeometry } from "./geometry-wire.js";
+export type { PackedGeometry } from "./geometry-wire.js";

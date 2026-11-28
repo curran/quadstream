@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import * as d3 from "d3";
 import * as topojson from "topojson-client";
-import { packGeometry, unpackGeometry } from "../examples/globe/wire.mjs";
+import { packGeometry, unpackGeometry } from "../dist/index.js";
 import {
   createGlobeGeometry,
   decodeCountries,
@@ -195,4 +195,11 @@ test("GlobeWorkerClient transfers ArrayBuffers and reconstructs frame.geojson fr
     { ...expectedRest, seq: 2 },
   );
   client.dispose();
+});
+
+test("malformed wire data and unsupported geometry are rejected", () => {
+  const original={type:"FeatureCollection",features:[{type:"Feature",properties:{},geometry:{type:"Polygon",coordinates:[]}}]};
+  assert.throws(()=>unpackGeometry(original,new Float64Array(),new Int32Array([1,-1])));
+  assert.throws(()=>unpackGeometry(original,new Float64Array([1]),new Int32Array([1,0])));
+  assert.throws(()=>packGeometry({type:"FeatureCollection",features:[{type:"Feature",properties:{},geometry:{type:"LineString",coordinates:[]}}]}));
 });
