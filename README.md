@@ -180,6 +180,10 @@ caching and D3 rendering remain application concerns.
 
 ## Interactive demos
 
+The React/Vite globe is published via GitHub Pages at
+<https://vizhub-studio.github.io/quadstream/> (after the first successful deployment).
+See the [deployment and local development instructions](quadstream-globe/README.md).
+
 From a checkout, install dependencies and build, then run either command:
 
 | Demo               | Command              | What it demonstrates                                                                                                                                         |
