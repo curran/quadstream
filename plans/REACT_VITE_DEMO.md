@@ -4,9 +4,9 @@
 
 Create a React + TypeScript + Vite version of the existing Quadstream globe demo, then add the city-label overlay from the VizHub reference. Preserve the existing demo's behavior and performance; the city labels are the intentional new feature. This is a plan, not authorization to replace the working demo.
 
-Begin in `examples/react-globe/` with a self-contained package, lockfile, Vite configuration, HTML entry point, source, tests, and build output. Keep the existing root npm package, its exports, TypeScript build, CLI, development server, progressive map demo, globe demo, and existing CI workflows intact during parallel development. The React app may consume the local Quadstream package through an explicit development alias or a local package dependency with a documented build prerequisite; verify that its worker bundle resolves the same library code and that production bundles have no dev-server assumptions. Do not add React, D3, Vite, or RBush to the core library's runtime dependencies.
+Begin in `quadstream-globe/` with a self-contained package, lockfile, Vite configuration, HTML entry point, source, tests, and build output. Keep the existing root npm package, its exports, TypeScript build, CLI, development server, progressive map demo, globe demo, and existing CI workflows intact during parallel development. The React app may consume the local Quadstream package through an explicit development alias or a local package dependency with a documented build prerequisite; verify that its worker bundle resolves the same library code and that production bundles have no dev-server assumptions. Do not add React, D3, Vite, or RBush to the core library's runtime dependencies.
 
-All implementation PRs target main independently, are small enough to review, and contain tests for their own behavior. The five pending core extraction PRs (#31–#35) are useful foundations for subsequent implementation; this planning document does not depend on their merge or assume their final API names. Reconcile the actual public APIs before implementation.
+All implementation PRs target main independently, are small enough to review, and contain tests for their own behavior. The five core extraction PRs (#31–#35) have merged and are foundations for subsequent implementation. Reconcile the actual public APIs before implementation.
 
 ## Reference visualization and coding style
 
@@ -18,7 +18,7 @@ Do not copy the reference's per-state-update imperative rendering loop or its ca
 
 ## Proposed application layout
 
-- `examples/react-globe/package.json`, `package-lock.json`, `vite.config.ts`, `tsconfig.json`, `index.html`
+- `quadstream-globe/package.json`, `package-lock.json`, `vite.config.ts`, `tsconfig.json`, `index.html`
 - `src/main.tsx`, `App.tsx`, `components/Globe.tsx`, `Minimap.tsx`, `Controls.tsx`, `Diagnostics.tsx`, `CityLabels.tsx`
 - `src/hooks/`: explicit lifecycle adapters for camera, worker, frame scheduling, resizing and interaction
 - `src/globe/`: rendering and orchestration adapters; prefer existing tested library/demo modules over divergent copies
@@ -91,4 +91,4 @@ Parallel demo builds and runs independently; legacy behavior, tests and package 
 
 ## Open decisions
 
-Pin the reference revision and dataset licenses, choose compatible pinned React/Vite/RBush versions that respect the repository's Node support, confirm asset packaging, ratify coverage/performance gates after baseline collection, and obtain explicit approval for promotion. This document changes no executable code, configuration, dependencies or CI.
+Pin the reference revision and dataset licenses, choose compatible pinned React/Vite/RBush versions that respect the repository's Node support, confirm asset packaging, ratify coverage/performance gates after baseline collection, and obtain explicit approval for promotion. The original planning PR changed no executable code, configuration, dependencies or CI.

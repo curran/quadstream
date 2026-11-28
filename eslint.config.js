@@ -8,6 +8,7 @@ export default tseslint.config(
       "dist/**",
       "node_modules/**",
       "Quadstream00/**",
+      "quadstream-globe/**",
       "src/main/webapp/**",
     ],
   },

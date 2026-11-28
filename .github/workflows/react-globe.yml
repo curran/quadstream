@@ -1,0 +1,60 @@
+name: React globe
+on:
+  pull_request:
+    paths:
+      - 'quadstream-globe/**'
+      - 'src/**'
+      - 'examples/**'
+      - 'package*.json'
+      - 'tsconfig.json'
+      - '.github/workflows/react-globe.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'quadstream-globe/**'
+      - 'src/**'
+      - 'examples/**'
+      - 'package*.json'
+      - 'tsconfig.json'
+      - '.github/workflows/react-globe.yml'
+permissions:
+  contents: read
+jobs:
+  scaffold:
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.1-noble
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - name: Install app dependencies
+        working-directory: quadstream-globe
+        run: |
+          if test -f package-lock.json; then
+            npm ci
+          else
+            npm install
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: react-globe-lockfile
+          path: quadstream-globe/package-lock.json
+          if-no-files-found: error
+      - run: npm run check
+        working-directory: quadstream-globe
+      - run: npm run test:browser
+        working-directory: quadstream-globe
+      - run: npm run test:baseline
+        working-directory: quadstream-globe
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: react-globe-test-results
+          path: quadstream-globe/test-results/
+          if-no-files-found: ignore
