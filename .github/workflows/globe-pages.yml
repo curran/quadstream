@@ -1,0 +1,56 @@
+name: Deploy globe to GitHub Pages
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.1-noble
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      GLOBE_BASE_PATH: /quadstream/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm ci
+        working-directory: quadstream-globe
+      - name: Build Pages artifact
+        working-directory: quadstream-globe
+        run: npm run build -- --base="$GLOBE_BASE_PATH"
+      - name: Smoke test the production artifact in Chromium and WebKit
+        working-directory: quadstream-globe
+        run: npx playwright test --config playwright.config.mjs scaffold.spec.mjs
+      - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        with:
+          path: quadstream-globe/dist
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish globe
+        id: deployment
+        uses: actions/deploy-pages@v4

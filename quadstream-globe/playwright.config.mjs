@@ -1,5 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
+const basePath = process.env.GLOBE_BASE_PATH ?? "/migration/";
+
 export default defineConfig({
   testDir: "./test/browser",
   workers: 1,
@@ -10,8 +12,8 @@ export default defineConfig({
     deviceScaleFactor: 1,
   },
   webServer: {
-    command: "npm run preview -- --host 127.0.0.1 --port 4174 --strictPort --base /migration/",
-    url: "http://127.0.0.1:4174/migration/",
+    command: `npm run preview -- --host 127.0.0.1 --port 4174 --strictPort --base ${basePath}`,
+    url: `http://127.0.0.1:4174${basePath}`,
     reuseExistingServer: false,
   },
   projects: [

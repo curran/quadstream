@@ -32,3 +32,24 @@ raw timings and repeat runs to measure noise. Add instrumentation for actual
 frame time, input-to-frame latency, idle draws, worker and memory metrics, and
 label-off/on comparisons before asserting the plan's proposed thresholds.
 The React app now mounts the legacy globe algorithms through a lifecycle adapter and uses ESM imports and Vite module workers. Both apps register the same 25 browser scenarios from `test/browser/globe-suite.mjs`; the Vite suite tests the production build under `/migration/` in Chromium and WebKit. The legacy entry point and core runtime are unchanged. City labels, full comparative benchmarks, and promotion remain subsequent phases. The regional catalog currently contains no international records; the app retains catalog support and US layers.
+
+## GitHub Pages deployment
+
+The public React globe is intended to be hosted at
+<https://vizhub-studio.github.io/quadstream/>. In the repository's Settings →
+Pages, select GitHub Actions as the publishing source (one-time setup).
+The `globe-pages.yml` workflow builds the root library and this app using the
+committed lockfiles, with Vite base `/quadstream/`. It smoke-tests the actual
+production output under that path in Chromium and WebKit before uploading only
+`quadstream-globe/dist` to Pages. Pull requests build and test without publishing;
+updates to `main` publish automatically, and the workflow can also be dispatched
+manually from `main`. The legacy globe remains available locally and unchanged.
+
+To reproduce the Pages build from this directory after installing dependencies:
+
+```sh
+npm run build -- --base=/quadstream/
+GLOBE_BASE_PATH=/quadstream/ npx playwright test --config playwright.config.mjs scaffold.spec.mjs
+```
+
+The default browser parity suite continues to use `/migration/`.

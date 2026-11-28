@@ -8,7 +8,7 @@ test("production build boots under a non-root base path", async ({ page }) => {
       errors.push(response.url() + ": " + response.status());
     }
   });
-  await page.goto("/migration/");
+  await page.goto(process.env.GLOBE_BASE_PATH ?? "/migration/");
   await expect(page).toHaveTitle("Quadstream Globe");
   await expect(page.getByRole("main", { name: "Quadstream Globe" })).toBeVisible();
   await expect(page.locator("#globe")).toBeVisible();
