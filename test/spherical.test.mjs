@@ -439,7 +439,7 @@ test("shared polygon boundaries remain identical at every level and BLG selectio
     assert.ok(validSphericalPolygon(b.geometry.coordinates));
   }
 });
-test("coarse spherical queries repair invalid geometry by promoting shared arcs", () => {
+test("preprocessing retains vertices needed for valid coarse spherical geometry", () => {
   const d = buildSphericalQuadstream(
     fc(
       feature(line([0, 0], [90, 0], [180, 0]), "long"),
@@ -449,7 +449,11 @@ test("coarse spherical queries repair invalid geometry by promoting shared arcs"
   const coarse = d.query({ level: 0 });
   assert.equal(coarse.usedFallback, false);
   assert.equal(coarse.valid, true);
-  assert.ok(coarse.promotedArcs > 0);
+  assert.equal(coarse.promotedArcs, 0);
+  assert.ok(d.retainedVertices > 0);
+  assert.deepEqual(coarse.geojson.features[0].geometry.coordinates, [
+    [0, 0], [90, 0], [-180, 0],
+  ]);
   assert.equal(d.query({ level: 0.5 }).valid, true);
   assert.equal(d.query().promotedArcs, 0);
   assert.equal(d.query().usedFallback, false);

@@ -7,6 +7,33 @@ const polys = (g) =>
     : g.type === "MultiPolygon"
       ? g.coordinates
       : [];
+// ISO numeric IDs, with exact atlas-name compatibility for sources without
+// standard IDs. Keep only the largest polygon of each country visible.
+const ALWAYS_VISIBLE_COUNTRY_IDS = new Set(["826", "558", "300", "192"]);
+const ALWAYS_VISIBLE_COUNTRY_NAMES = new Set([
+  "United Kingdom",
+  "Nicaragua",
+  "Greece",
+  "Cuba",
+]);
+function alwaysVisiblePolygons(input, d3) {
+  const selected = new Map();
+  for (const feature of input.features) {
+    const polygons = polys(feature.geometry);
+    if (!polygons.length) continue;
+    let largest = 0;
+    let area = -Infinity;
+    polygons.forEach((coordinates, index) => {
+      const candidate = d3.geoArea({ type: "Polygon", coordinates });
+      if (candidate > area) {
+        area = candidate;
+        largest = index;
+      }
+    });
+    selected.set(String(feature.id), largest);
+  }
+  return selected;
+}
 const key = (p) => JSON.stringify(canonicalLonLat(p));
 const count = (g) =>
   polys(g)
@@ -185,7 +212,17 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
           id: String(i),
         })),
       };
-      const engine = buildSphericalQuadstream(input, { maxLevel });
+      const retained = input.features.filter((f, j) => {
+        const original = features[indices[j]];
+        return (
+          ALWAYS_VISIBLE_COUNTRY_IDS.has(String(original.id)) ||
+          ALWAYS_VISIBLE_COUNTRY_NAMES.has(original.properties?.name)
+        );
+      });
+      const engine = buildSphericalQuadstream(input, {
+        maxLevel,
+        alwaysVisiblePolygons: alwaysVisiblePolygons({ features: retained }, d3),
+      });
       const full = engine.query({ level: maxLevel - 1 }).geojson.features;
       if (!full.every((f, j) => d3Compatible(work[indices[j]], f, d3, true)))
         throw new Error("D3 full-detail oracle disagrees");

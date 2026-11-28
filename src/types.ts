@@ -74,7 +74,7 @@ export interface QueryResult {
   /** Whether the requested reconstruction passed the dataset's validity checks. */
   valid: boolean;
   usedFallback: boolean;
-  /** Spherical queries: arcs promoted to a finer level to keep features valid. */
+  /** Deprecated spherical diagnostic: always zero for preprocessed hierarchies. */
   promotedArcs?: number;
   /** Spherical queries with the "drop" policy: polygons hidden by the tree. */
   hiddenPolygons?: number;

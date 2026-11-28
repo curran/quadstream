@@ -12,17 +12,21 @@ const topojson = require("topojson-client");
 const atlas = process.argv[2] ?? "50m";
 const repeats = Number(process.argv[3] ?? 3);
 const source = JSON.parse(
-  readFileSync(`node_modules/world-atlas/countries-${atlas}.json`, "utf8"),
+  readFileSync(`node_modules/visionscarto-world-atlas/world/${atlas}.json`, "utf8"),
 );
 const median = (a) => [...a].sort((x, y) => x - y)[a.length >> 1];
-const out = { atlas, repeats, init: [], queries: {} };
+const out = { atlas, repeats, init: [], heapDelta: [], rss: [], queries: {} };
 for (let r = 0; r < repeats; r++) {
   const original = decodeCountries(source, topojson);
+  const before = process.memoryUsage().heapUsed;
   const t = performance.now();
   const engine = createGlobeGeometry(original, d3);
   out.init.push(performance.now() - t);
+  const memory = process.memoryUsage();
+  out.heapDelta.push(memory.heapUsed - before);
+  out.rss.push(memory.rss);
   out.sourceVertices = engine.sourceVertices;
-  for (const level of [2, 4, 6, 8, 10, 12.5]) {
+  for (const level of [4.2, 5.9, 6, 6.1, 8, 10, 12.5]) {
     const q = performance.now();
     const f = engine.query(level);
     (out.queries[level] ??= []).push(performance.now() - q);
@@ -37,6 +41,8 @@ console.log(
     sourceVertices: out.sourceVertices,
     initMedianMs: round(median(out.init)),
     initAllMs: out.init.map(round),
+    heapDeltaBytes: out.heapDelta,
+    rssAfterBuildBytes: out.rss,
     queryMedianMs: Object.fromEntries(
       Object.entries(out.queries).map(([k, v]) => [k, round(median(v))]),
     ),

@@ -44,10 +44,23 @@ spherical arrangement solver; near-degenerate geometry is not a production
 correctness claim. Cross-feature intersections between unrelated arcs and
 multipolygon component overlaps are not yet checked globally.
 
-All features are reconstructed globally at the requested BLG level. Invalid
-features are repaired by promoting their shared arcs to finer levels
-(`promotedArcs`); `valid: false` is returned only if a feature stays invalid
-at full detail, never replaced by a global full-detail fallback. Vertices shared by three or more shapes remain critical
+All features are reconstructed globally at the requested BLG level. Before
+building the BLG trees, preprocessing starts from the valid source and
+attempts descending vertex-removal batches on a tenth-LOD grid. Nominal
+activation thresholds are rounded down conservatively (up to 0.1 earlier);
+a rejected batch is bisected until individual unsafe vertices are identified
+and retained at level zero. Every affected polygon or line is validated
+against the current simplified geometry. Shared vertices use one decision
+across all their owners. This establishes nested, validated vertex sets
+for every real-valued query level, with transitions on the tenth grid.
+The nominal quadtree and island/hole visibility thresholds are unchanged.
+Dropping a hidden ring does not introduce crossings in remaining rings.
+
+The dataset exposes corrected `activationLevels` and the number of
+`retainedVertices` (unsafe removals). The legacy `promotedArcs` result is zero;
+queries do not repair or promote arcs. `valid: false` remains an explicit
+reconstruction diagnostic. No query-level full-detail fallback is used.
+Vertices shared by three or more shapes remain critical
 topology junctions. No geographic viewport culling is permitted yet; topology
 bounds are diagnostic only. The spherical dataset intentionally does not implement
 the planar partition/session interface. A versioned spherical artifact format,

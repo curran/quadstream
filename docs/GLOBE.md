@@ -95,8 +95,9 @@ removed for the engine only. Original source geometry remains untouched.
 If a global build fails, the demo attempts exact-coordinate-connected groups;
 a rejected group remains entirely original, preserving shared vertices with
 neighbors in that group. This is not independent per-country simplification.
-Fractional LOD candidates are repaired by promoting shared arcs of invalid
-features, as described below. The demo reports remaining invalid groups. No arbitrary
+Topology-safe preprocessing validates descending removal batches and assigns
+corrected shared-vertex activation thresholds before building BLG trees.
+Queries do not promote arcs; the demo reports unexpected invalid groups. No arbitrary
 feature dropping or ring rewinding. Vertices shared by three or more shapes
 remain critical topology junctions at every LOD.
 Cross-feature intersection checking and differently digitized boundaries are
@@ -172,7 +173,7 @@ computed from a canonical edge orientation so neighbours share bit-identical
 points. Views whose cone (plus margin) approaches a hemisphere fall back to
 whole-feature culling. The minimap highlights the land geometry submitted to D3, including the padded clip window (not necessarily the exact rectangular viewport). Its dimmed context stays coarse and independent; regional line overlays are not highlighted.
 
-Ring clipping classifies each vertex once with a dot product and retains only visible runs and boundary events, without allocating a visibility bitmap. The diagnostics count classified, inside and outside vertices for scanned rings on the last clip build; cap fast paths and winding fallback work are not included. Global reconstruction and topology repair still precede clipping.
+Ring clipping classifies each vertex once with a dot product and retains only visible runs and boundary events, without allocating a visibility bitmap. The diagnostics count classified, inside and outside vertices for scanned rings on the last clip build; cap fast paths and winding fallback work are not included. Global reconstruction still precedes clipping; topology repair is performed during preprocessing.
 `?clip=0` restores whole-feature culling for A/B comparison; diagnostics report
 vertices and rings drawn, clipped, wrapped and dropped.
 

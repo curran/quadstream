@@ -350,11 +350,24 @@ test("default 50m atlas: the demo floor preserves coarse country visibility", as
         polysOf(f.geometry).length ? [i] : [],
       ),
     );
+  const atZero = visible(0);
   const at4 = visible(4),
     at41 = visible(4.1),
     atFloor = visible(MIN_AUTO_LEVEL);
   for (const i of at4) assert.ok(at41.has(i));
   for (const i of at41) assert.ok(atFloor.has(i));
+  for (const name of ["United Kingdom", "Nicaragua", "Greece", "Cuba"]) {
+    const i = original.features.findIndex((f) => f.properties?.name === name);
+    assert.ok(i >= 0, name + " is present in the pinned atlas");
+    assert.ok(atZero.has(i), name + " is visible even at LOD zero");
+    assert.ok(atFloor.has(i), name + " is visible at the demo floor");
+    const coarse = engine.query(0).geojson.features[i];
+    const fine = engine.query(19).geojson.features[i];
+    const fineVertices = new Set(polysOf(fine.geometry).flat(2).map(keyOf));
+    for (const vertex of polysOf(coarse.geometry).flat(2))
+      assert.ok(fineVertices.has(keyOf(vertex)), name + " retains coarse vertices");
+  }
+  assert.equal(engine.query(0).validatorInvalidGroups, 0);
   const missing = original.features.filter((_, i) => !atFloor.has(i));
   const names = missing.map((f) => f.properties?.name ?? f.id);
   t.diagnostic("Countries absent at the demo floor: " + names.join(", "));
