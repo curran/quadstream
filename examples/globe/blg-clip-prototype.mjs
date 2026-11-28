@@ -14,7 +14,8 @@ const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 function boundsFor(tree, coordinates) {
   if (coordinates.length !== tree.count)
     throw new Error("BLG positions and coordinates must match");
-  const bounds = new WeakMap(), stack = [];
+  const bounds = new WeakMap(),
+    stack = [];
   if (tree.root) stack.push([tree.root, false]);
   while (stack.length) {
     const [node, done] = stack.pop();
@@ -27,7 +28,9 @@ function boundsFor(tree, coordinates) {
     const [lon, lat] = coordinates[node.position];
     if (!Number.isFinite(lon) || !Number.isFinite(lat) || Math.abs(lat) > 90)
       throw new Error("Invalid spherical coordinate");
-    const v = lonLatToVec(lon, lat), lo = [...v], hi = [...v];
+    const v = lonLatToVec(lon, lat),
+      lo = [...v],
+      hi = [...v];
     let size = 1;
     for (const child of [node.left, node.right]) {
       if (!child) continue;
@@ -43,7 +46,10 @@ function boundsFor(tree, coordinates) {
     let cap = null;
     if (len > EPS) {
       const center = mid.map((x) => x / len),
-        lower = dot(center, center.map((x, i) => x >= 0 ? lo[i] : hi[i])),
+        lower = dot(
+          center,
+          center.map((x, i) => (x >= 0 ? lo[i] : hi[i])),
+        ),
         radius = Math.acos(Math.max(-1, Math.min(1, lower))) + EPS;
       if (radius < Math.PI / 2 - EPS) cap = { center, radius };
     }
@@ -54,7 +60,9 @@ function boundsFor(tree, coordinates) {
 
 function disjoint(cap, w) {
   if (!cap || !(w.radius >= 0 && w.radius < Math.PI / 2)) return false;
-  const d = Math.acos(Math.max(-1, Math.min(1, dot(cap.center, [w.cx, w.cy, w.cz]))));
+  const d = Math.acos(
+    Math.max(-1, Math.min(1, dot(cap.center, [w.cx, w.cy, w.cz]))),
+  );
   return d > cap.radius + w.radius + EPS;
 }
 
@@ -62,7 +70,8 @@ function selection(maxLevel) {
   if ((!Number.isFinite(maxLevel) && maxLevel !== Infinity) || maxLevel < 0)
     throw new Error("Invalid selection level");
   if (maxLevel === Infinity) maxLevel = Number.MAX_SAFE_INTEGER;
-  const whole = Math.floor(maxLevel), fraction = maxLevel - whole,
+  const whole = Math.floor(maxLevel),
+    fraction = maxLevel - whole,
     limit = fraction ? whole + 1 : whole;
   return {
     eligible: (node) => node && node.level <= limit,
@@ -91,21 +100,31 @@ function extreme(root, pick, reverse, stats) {
   return null;
 }
 
-const closed = (points) => points.length ? [...points, points[0]] : [];
+const closed = (points) => (points.length ? [...points, points[0]] : []);
 
 export function createBlgClipPrototype(tree, coordinates) {
   const bounds = boundsFor(tree, coordinates);
   return (w, level, side = -1, { reverse = false } = {}) => {
-    const pick = selection(level), positions = [], stack = [],
+    const pick = selection(level),
+      positions = [],
+      stack = [],
       stats = {
-        traversalVisits: 0, endpointVisits: 0, prunedSubtrees: 0,
-        coveredStoredNodes: 0, compactedVertices: 0, fallback: false,
+        traversalVisits: 0,
+        endpointVisits: 0,
+        prunedSubtrees: 0,
+        coveredStoredNodes: 0,
+        compactedVertices: 0,
+        fallback: false,
       };
     const reference = () => {
       stats.fallback = true;
       const all = selectBlgPositions(tree, level);
       if (reverse) all.reverse();
-      return clipRing(w, ringInfo(closed(all.map((i) => coordinates[i]))), side);
+      return clipRing(
+        w,
+        ringInfo(closed(all.map((i) => coordinates[i]))),
+        side,
+      );
     };
     if (tree.root) stack.push([tree.root, false]);
     while (stack.length) {
@@ -135,13 +154,19 @@ export function createBlgClipPrototype(tree, coordinates) {
     stats.compactedVertices = positions.length;
     // Joining edges between spans remain real selected edges. Only internal
     // edges of certified exterior spans are replaced by an exterior chord.
-    const result = clipRing(w, ringInfo(closed(positions.map((i) => coordinates[i]))), side);
+    const result = clipRing(
+      w,
+      ringInfo(closed(positions.map((i) => coordinates[i]))),
+      side,
+    );
     // No crossing requires the original winding; never infer enclosure from
     // pruned spans. Also recover if compaction collapsed a short ring.
     return {
-      result: stats.prunedSubtrees && (positions.length < 3 || result.status !== "clipped")
-        ? reference()
-        : result,
+      result:
+        stats.prunedSubtrees &&
+        (positions.length < 3 || result.status !== "clipped")
+          ? reference()
+          : result,
       stats,
     };
   };

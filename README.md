@@ -141,15 +141,17 @@ planar viewport bounds, v1 partition serialization or network streaming.
 They may reject inputs that cannot be validated in the reference hemisphere
 chart. See [spherical semantics](https://github.com/vizhub-studio/quadstream/blob/master/docs/SPHERICAL.md).
 
-
 ### Spherical visibility and clipping
 
 The geometry library also provides renderer-independent visibility helpers:
 
 ```ts
 import {
-  lonLatVector, computeFeatureCaps, filterSphericalFeatures,
-  clipWindow, clipToWindow,
+  lonLatVector,
+  computeFeatureCaps,
+  filterSphericalFeatures,
+  clipWindow,
+  clipToWindow,
 } from "@vizhub/quadstream";
 
 const [x, y, z] = lonLatVector([10, 45]);
@@ -480,14 +482,14 @@ the canonical source and signatures, but does not build a planar spatial index.
 
 ### Level-of-detail selection and query complexity
 
-| Algorithm                                            | Time                                                                    | Space and explanation                                                                                            |
-| ---------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| BLG threshold traversal                              | O(t + 1), with t nodes passing the traversal threshold; O(m) worst case | O(h + k) for tree height h and k emitted positions; h can be m                                                   |
-| Fractional BLG selection                             | Same traversal bound                                                    | Stable vertex-ID hash is O(1); rejected fractional-level candidates are still visited                            |
-| Viewport feature lookup                              | O(w + J log(J + 1))                                                     | O(w + J) conservative auxiliary bound; w counts visited nodes and tested entries; O(F + J log(J + 1)) worst case |
-| Arc/path reconstruction before polygon validation    | O(T + K + J)                                                            | O(T + K + J) conservative bound for full-ID scans, reversed copies, temporary paths and output                   |
-| Planar feature reconstruction with validity checking | O(T + K + J + Q)                                                        | Same linear working storage; quadratic time does not imply quadratic storage                                     |
-| Spherical topology-safe preprocessing                | O(V (T_all + Q_full)) conservative worst-case time; validated batches normally reduce checks | O(V + T_all + A) working storage, plus source and trees |
+| Algorithm                                            | Time                                                                                         | Space and explanation                                                                                            |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| BLG threshold traversal                              | O(t + 1), with t nodes passing the traversal threshold; O(m) worst case                      | O(h + k) for tree height h and k emitted positions; h can be m                                                   |
+| Fractional BLG selection                             | Same traversal bound                                                                         | Stable vertex-ID hash is O(1); rejected fractional-level candidates are still visited                            |
+| Viewport feature lookup                              | O(w + J log(J + 1))                                                                          | O(w + J) conservative auxiliary bound; w counts visited nodes and tested entries; O(F + J log(J + 1)) worst case |
+| Arc/path reconstruction before polygon validation    | O(T + K + J)                                                                                 | O(T + K + J) conservative bound for full-ID scans, reversed copies, temporary paths and output                   |
+| Planar feature reconstruction with validity checking | O(T + K + J + Q)                                                                             | Same linear working storage; quadratic time does not imply quadratic storage                                     |
+| Spherical topology-safe preprocessing                | O(V (T_all + Q_full)) conservative worst-case time; validated batches normally reduce checks | O(V + T_all + A) working storage, plus source and trees                                                          |
 
 BLG is a min-heap on detail priority and an inorder sequence on path
 position. An entire subtree can be skipped when its root exceeds the

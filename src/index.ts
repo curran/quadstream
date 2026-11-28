@@ -85,7 +85,11 @@ export {
 } from "./spherical-cull.js";
 export type { SphericalCap, SphericalViewCone } from "./spherical-cull.js";
 export { clipWindow, clipToWindow } from "./spherical-clip.js";
-export type { SphericalClipWindow, SphericalClipStats, SphericalClipResult } from "./spherical-clip.js";
+export type {
+  SphericalClipWindow,
+  SphericalClipStats,
+  SphericalClipResult,
+} from "./spherical-clip.js";
 
 export { repairRing, repairGeometry } from "./spherical-repair.js";
 export type { SphericalRepairOptions } from "./spherical-repair.js";
@@ -93,11 +97,20 @@ export type { SphericalRepairOptions } from "./spherical-repair.js";
 export { createLatestGeometry, improvesLod } from "./lod-scheduler.js";
 export type { LatestGeometryOptions } from "./lod-scheduler.js";
 
-export { sphericalConnectedComponents, buildRobustSphericalGroups } from "./spherical-robust-dataset.js";
-export type { SphericalBuildGroup, RobustSphericalOptions } from "./spherical-robust-dataset.js";
+export {
+  sphericalConnectedComponents,
+  buildRobustSphericalGroups,
+} from "./spherical-robust-dataset.js";
+export type {
+  SphericalBuildGroup,
+  RobustSphericalOptions,
+} from "./spherical-robust-dataset.js";
 
 export { packGeometry, unpackGeometry } from "./geometry-wire.js";
 export type { PackedGeometry } from "./geometry-wire.js";
 
 export { createSphericalViewClipper } from "./spherical-view-clipper.js";
-export type { SphericalViewClipperOptions, CachedSphericalClipResult } from "./spherical-view-clipper.js";
+export type {
+  SphericalViewClipperOptions,
+  CachedSphericalClipResult,
+} from "./spherical-view-clipper.js";

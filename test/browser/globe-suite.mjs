@@ -140,10 +140,14 @@ export function registerGlobeSuite(test, expect, { entry }) {
       },
       { rotation, zoom },
     );
-    await expect.poll(async () => (await state(page)).rotation).toEqual(rotation);
+    await expect
+      .poll(async () => (await state(page)).rotation)
+      .toEqual(rotation);
     await expect
       .poll(async () =>
-        Math.abs((await state(page)).scale / (await state(page)).initial - zoom),
+        Math.abs(
+          (await state(page)).scale / (await state(page)).initial - zoom,
+        ),
       )
       .toBeLessThan(0.001);
     await expect(globe(page)).toHaveAttribute("data-interacting", "false");
@@ -396,7 +400,10 @@ export function registerGlobeSuite(test, expect, { entry }) {
       mimeType: "application/json",
       buffer: Buffer.from("{}"),
     });
-    await expect(page.locator("#status")).toHaveAttribute("data-phase", "error");
+    await expect(page.locator("#status")).toHaveAttribute(
+      "data-phase",
+      "error",
+    );
     await page.locator("#atlas").selectOption("110m");
     await page.locator("#atlas").selectOption("fixture");
     await ready(page);
@@ -436,13 +443,25 @@ export function registerGlobeSuite(test, expect, { entry }) {
     await ready(page);
     const mismatches = await page.evaluate(async () => {
       const [{ createGlobeRenderer }, { decodeCountries }] = await Promise.all([
-        globalThis.globeDebug?.testModules?.map ?? import("/examples/globe/map.mjs"),
-        globalThis.globeDebug?.testModules?.geometry ?? import("/examples/globe/geometry.mjs"),
+        globalThis.globeDebug?.testModules?.map ??
+          import("/examples/globe/map.mjs"),
+        globalThis.globeDebug?.testModules?.geometry ??
+          import("/examples/globe/geometry.mjs"),
       ]);
       const topo = await (
-        await fetch((globalThis.globeDebug?.testModules ? new URL("globe-data/test-atlas/countries-110m.json", location.href).href : "/node_modules/world-atlas/countries-110m.json"))
+        await fetch(
+          globalThis.globeDebug?.testModules
+            ? new URL(
+                "globe-data/test-atlas/countries-110m.json",
+                location.href,
+              ).href
+            : "/node_modules/world-atlas/countries-110m.json",
+        )
       ).json();
-      const fc = decodeCountries(topo, (globalThis.globeDebug?.testModules?.topojson ?? globalThis.topojson));
+      const fc = decodeCountries(
+        topo,
+        globalThis.globeDebug?.testModules?.topojson ?? globalThis.topojson,
+      );
       const width = 400,
         height = 300;
       const make = (cull) => {
@@ -450,7 +469,14 @@ export function registerGlobeSuite(test, expect, { entry }) {
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext("2d");
-        return { ctx, draw: createGlobeRenderer((globalThis.globeDebug?.testModules?.d3 ?? globalThis.d3), ctx, { cull }) };
+        return {
+          ctx,
+          draw: createGlobeRenderer(
+            globalThis.globeDebug?.testModules?.d3 ?? globalThis.d3,
+            ctx,
+            { cull },
+          ),
+        };
       };
       const a = make(false),
         b = make(true);
@@ -509,8 +535,10 @@ export function registerGlobeSuite(test, expect, { entry }) {
     await ready(page);
     const result = await page.evaluate(async () => {
       const [{ createGlobeRenderer }, { decodeCountries }] = await Promise.all([
-        globalThis.globeDebug?.testModules?.map ?? import("/examples/globe/map.mjs"),
-        globalThis.globeDebug?.testModules?.geometry ?? import("/examples/globe/geometry.mjs"),
+        globalThis.globeDebug?.testModules?.map ??
+          import("/examples/globe/map.mjs"),
+        globalThis.globeDebug?.testModules?.geometry ??
+          import("/examples/globe/geometry.mjs"),
       ]);
       const width = 960,
         height = 540;
@@ -519,7 +547,14 @@ export function registerGlobeSuite(test, expect, { entry }) {
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        return { ctx, draw: createGlobeRenderer((globalThis.globeDebug?.testModules?.d3 ?? globalThis.d3), ctx, opts) };
+        return {
+          ctx,
+          draw: createGlobeRenderer(
+            globalThis.globeDebug?.testModules?.d3 ?? globalThis.d3,
+            ctx,
+            opts,
+          ),
+        };
       };
       const out = [];
       for (const [atlas, views] of [
@@ -544,9 +579,19 @@ export function registerGlobeSuite(test, expect, { entry }) {
         ],
       ]) {
         const topo = await (
-          await fetch((globalThis.globeDebug?.testModules ? new URL(`globe-data/test-atlas/countries-${atlas}.json`, location.href).href : `/node_modules/world-atlas/countries-${atlas}.json`))
+          await fetch(
+            globalThis.globeDebug?.testModules
+              ? new URL(
+                  `globe-data/test-atlas/countries-${atlas}.json`,
+                  location.href,
+                ).href
+              : `/node_modules/world-atlas/countries-${atlas}.json`,
+          )
         ).json();
-        const fc = decodeCountries(topo, (globalThis.globeDebug?.testModules?.topojson ?? globalThis.topojson));
+        const fc = decodeCountries(
+          topo,
+          globalThis.globeDebug?.testModules?.topojson ?? globalThis.topojson,
+        );
         const cull = make({ cull: true }),
           clip = make({ cull: true, clip: true });
         for (const [name, rotation, zoom] of views) {
@@ -593,7 +638,9 @@ export function registerGlobeSuite(test, expect, { entry }) {
       // no visible shape may differ.
       expect(r.big, `${r.atlas} ${r.name}`).toBeLessThanOrEqual(8);
       if (r.mode === "clip")
-        expect(r.vertices, `${r.atlas} ${r.name}`).toBeLessThan(r.sourceVertices);
+        expect(r.vertices, `${r.atlas} ${r.name}`).toBeLessThan(
+          r.sourceVertices,
+        );
     }
     expect(result.filter((r) => r.mode === "clip").length).toBe(result.length);
   });
@@ -682,10 +729,14 @@ export function registerGlobeSuite(test, expect, { entry }) {
     // Require the reset pose and settled flag from the same rendered frame.
     await expect
       .poll(
-        () => globe(page).evaluate((el) => ({
-          moving: el.dataset.moving,
-          scale: Math.abs(Number(el.dataset.scale) - Number(el.dataset.initialScale)) < 0.001,
-        })),
+        () =>
+          globe(page).evaluate((el) => ({
+            moving: el.dataset.moving,
+            scale:
+              Math.abs(
+                Number(el.dataset.scale) - Number(el.dataset.initialScale),
+              ) < 0.001,
+          })),
         { timeout: 15000 },
       )
       .toEqual({ moving: "false", scale: true });
@@ -705,7 +756,8 @@ export function registerGlobeSuite(test, expect, { entry }) {
   });
 
   const flightUrl = entry + "?fixture=1&smooth=1";
-  const data = (page, key) => globe(page).evaluate((el, k) => el.dataset[k], key);
+  const data = (page, key) =>
+    globe(page).evaluate((el, k) => el.dataset[k], key);
   test("holding D accelerates zoom in, release coasts, C flies back out, then frames stop", async ({
     page,
   }) => {
@@ -793,7 +845,7 @@ export function registerGlobeSuite(test, expect, { entry }) {
               moving: d.moving,
               thrusting: d.thrusting,
               rotation: [
-                Math.abs((((lon + 180) % 360) + 360) % 360 - 180) < 0.001,
+                Math.abs(((((lon + 180) % 360) + 360) % 360) - 180) < 0.001,
                 Math.abs(lat + 20) < 0.001,
                 Math.abs(roll) < 0.001,
               ],
@@ -844,7 +896,11 @@ export function registerGlobeSuite(test, expect, { entry }) {
       window.Worker = class extends NativeWorker {
         constructor(url, options) {
           super(url, options);
-          if (!String(url).endsWith("/worker.mjs") && options?.name !== "quadstream-geometry") return;
+          if (
+            !String(url).endsWith("/worker.mjs") &&
+            options?.name !== "quadstream-geometry"
+          )
+            return;
           const replayed = new WeakSet();
           this.addEventListener("message", (event) => {
             if (!event.data.frame || replayed.has(event)) return;
@@ -895,7 +951,9 @@ export function registerGlobeSuite(test, expect, { entry }) {
     );
   });
 
-  test("settings disclosure preserves controls and globe layout", async ({ page }, testInfo) => {
+  test("settings disclosure preserves controls and globe layout", async ({
+    page,
+  }, testInfo) => {
     await page.goto(url);
     await ready(page);
     const panel = page.locator("#panel");
@@ -917,18 +975,25 @@ export function registerGlobeSuite(test, expect, { entry }) {
     await expect(page.locator("#show-quadtree")).toBeChecked();
     await expect(page.locator("#navigation")).toHaveAttribute("open", "");
     await expect(page.locator("#data-source")).toHaveAttribute("open", "");
-    await page.screenshot({ path: testInfo.outputPath("settings-desktop.png") });
+    await page.screenshot({
+      path: testInfo.outputPath("settings-desktop.png"),
+    });
     await page.mouse.click(800, 400);
     await expect(panel).toBeHidden();
     await page.locator("#minimap-toggle").click();
     await expect(page.locator("#minimap")).toBeHidden();
-    await expect(page.locator("#minimap-toggle")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("#minimap-toggle")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
     await page.locator("#minimap-toggle").click();
     await expect(page.locator("#minimap")).toBeVisible();
     await page.locator("#reset").click();
   });
 
-  test("mobile settings fit and diagnostics remain discoverable", async ({ page }, testInfo) => {
+  test("mobile settings fit and diagnostics remain discoverable", async ({
+    page,
+  }, testInfo) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto(url);
     await ready(page);
@@ -939,12 +1004,21 @@ export function registerGlobeSuite(test, expect, { entry }) {
       mimeType: "application/json",
       buffer: Buffer.from("invalid"),
     });
-    await expect(page.locator("#status")).toHaveAttribute("data-phase", "error");
+    await expect(page.locator("#status")).toHaveAttribute(
+      "data-phase",
+      "error",
+    );
     await page.keyboard.press("Escape");
     await expect(page.locator("#panel")).toBeHidden();
-    await expect(page.locator("#status-indicator")).toHaveAttribute("data-kind", "error");
+    await expect(page.locator("#status-indicator")).toHaveAttribute(
+      "data-kind",
+      "error",
+    );
     await page.locator("#status-indicator").click();
-    await expect(page.locator("#diagnostics-section")).toHaveAttribute("open", "");
+    await expect(page.locator("#diagnostics-section")).toHaveAttribute(
+      "open",
+      "",
+    );
     await expect(page.locator("#retry")).toBeVisible();
     const bounds = await page.locator("#panel").boundingBox();
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(375);
@@ -952,28 +1026,41 @@ export function registerGlobeSuite(test, expect, { entry }) {
     await page.screenshot({ path: testInfo.outputPath("settings-mobile.png") });
   });
 
-  test("drag and wheel settle to the geographic anchor with smoothing enabled", async ({ page }) => {
+  test("drag and wheel settle to the geographic anchor with smoothing enabled", async ({
+    page,
+  }) => {
     await page.goto(entry + "?fixture=1&smooth=1");
     await ready(page);
     const box = await globe(page).boundingBox();
     const x = box.x + box.width / 2 + 35;
     const y = box.y + box.height / 2 + 25;
-    const anchor = await globe(page).evaluate((el, [x, y]) => {
-      const rect = el.getBoundingClientRect();
-      return (globalThis.globeDebug?.testModules?.d3 ?? globalThis.d3).geoOrthographic()
-        .rotate(JSON.parse(el.dataset.rotation))
-        .scale(Number(el.dataset.scale))
-        .translate([el.clientWidth / 2, el.clientHeight / 2])
-        .invert([x - rect.left, y - rect.top]);
-    }, [x, y]);
-    const error = (x, y, goal = false) => globe(page).evaluate((el, { anchor, x, y, goal }) => {
-      const rect = el.getBoundingClientRect();
-      const p = (globalThis.globeDebug?.testModules?.d3 ?? globalThis.d3).geoOrthographic()
-        .rotate(JSON.parse(goal ? el.dataset.goalRotation : el.dataset.rotation))
-        .scale(Number(goal ? el.dataset.goalScale : el.dataset.scale))
-        .translate([el.clientWidth / 2, el.clientHeight / 2])(anchor);
-      return Math.hypot(p[0] + rect.left - x, p[1] + rect.top - y);
-    }, { anchor, x, y, goal });
+    const anchor = await globe(page).evaluate(
+      (el, [x, y]) => {
+        const rect = el.getBoundingClientRect();
+        return (globalThis.globeDebug?.testModules?.d3 ?? globalThis.d3)
+          .geoOrthographic()
+          .rotate(JSON.parse(el.dataset.rotation))
+          .scale(Number(el.dataset.scale))
+          .translate([el.clientWidth / 2, el.clientHeight / 2])
+          .invert([x - rect.left, y - rect.top]);
+      },
+      [x, y],
+    );
+    const error = (x, y, goal = false) =>
+      globe(page).evaluate(
+        (el, { anchor, x, y, goal }) => {
+          const rect = el.getBoundingClientRect();
+          const p = (globalThis.globeDebug?.testModules?.d3 ?? globalThis.d3)
+            .geoOrthographic()
+            .rotate(
+              JSON.parse(goal ? el.dataset.goalRotation : el.dataset.rotation),
+            )
+            .scale(Number(goal ? el.dataset.goalScale : el.dataset.scale))
+            .translate([el.clientWidth / 2, el.clientHeight / 2])(anchor);
+          return Math.hypot(p[0] + rect.left - x, p[1] + rect.top - y);
+        },
+        { anchor, x, y, goal },
+      );
     await page.mouse.move(x, y);
     await page.mouse.down();
     await page.mouse.move(x + 50, y + 30);
@@ -981,13 +1068,19 @@ export function registerGlobeSuite(test, expect, { entry }) {
     await page.mouse.move(x + 50, y + 30);
     await expect.poll(() => error(x + 50, y + 30, true)).toBeLessThan(0.5);
     await page.mouse.up();
-    await expect.poll(() => data(page, "moving"), { timeout: 15000 }).toBe("false");
+    await expect
+      .poll(() => data(page, "moving"), { timeout: 15000 })
+      .toBe("false");
     await expect.poll(() => error(x + 50, y + 30)).toBeLessThan(0.5);
     await page.mouse.wheel(0, -300);
     await page.mouse.wheel(0, -300);
     await expect.poll(() => error(x + 50, y + 30, true)).toBeLessThan(0.5);
-    await expect.poll(() => data(page, "moving"), { timeout: 15000 }).toBe("false");
-    expect((await state(page)).scale).toBeGreaterThan((await state(page)).initial);
+    await expect
+      .poll(() => data(page, "moving"), { timeout: 15000 })
+      .toBe("false");
+    expect((await state(page)).scale).toBeGreaterThan(
+      (await state(page)).initial,
+    );
     await expect.poll(() => error(x + 50, y + 30)).toBeLessThan(0.5);
     expect((await state(page)).rotation[2]).toBe(0);
   });

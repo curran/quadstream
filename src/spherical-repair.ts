@@ -1,4 +1,8 @@
-import { canonicalLonLat, projectSpherical, sphericalChart } from "./spherical-geometry.js";
+import {
+  canonicalLonLat,
+  projectSpherical,
+  sphericalChart,
+} from "./spherical-geometry.js";
 import { simpleClosedRing } from "./geometry.js";
 import type { Geometry, Position } from "./types.js";
 import type { SphericalChart } from "./spherical-geometry.js";
@@ -53,7 +57,11 @@ function unproject([x, y]: Position, chart: SphericalChart) {
  * each crossing and discarding the loop with fewer vertices. Returns the
  * repaired ring, or null when the ring is not repairable this way.
  */
-export function repairRing(ring: readonly Position[], chart: SphericalChart | null = null, { maxRing = MAX_RING, maxPasses = MAX_PASSES }: SphericalRepairOptions = {}): Position[] | null {
+export function repairRing(
+  ring: readonly Position[],
+  chart: SphericalChart | null = null,
+  { maxRing = MAX_RING, maxPasses = MAX_PASSES }: SphericalRepairOptions = {},
+): Position[] | null {
   if (ring.length < 4 || ring.length > maxRing) return null;
   let pts = ring.slice(0, -1);
   try {
@@ -79,7 +87,10 @@ export function repairRing(ring: readonly Position[], chart: SphericalChart | nu
 }
 
 /** Repairs every ring of a Polygon/MultiPolygon; reports whether it changed. */
-export function repairGeometry(geometry: Geometry, options: SphericalRepairOptions = {}) {
+export function repairGeometry(
+  geometry: Geometry,
+  options: SphericalRepairOptions = {},
+) {
   let changed = false;
   const fix = (poly: Position[][]): Position[][] => {
     let chart: SphericalChart | null = null;
@@ -112,4 +123,7 @@ export function repairGeometry(geometry: Geometry, options: SphericalRepairOptio
   return { geometry: next, changed };
 }
 
-export interface SphericalRepairOptions { maxRing?: number; maxPasses?: number }
+export interface SphericalRepairOptions {
+  maxRing?: number;
+  maxPasses?: number;
+}

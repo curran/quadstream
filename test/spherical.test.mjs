@@ -452,7 +452,9 @@ test("preprocessing retains vertices needed for valid coarse spherical geometry"
   assert.equal(coarse.promotedArcs, 0);
   assert.ok(d.retainedVertices > 0);
   assert.deepEqual(coarse.geojson.features[0].geometry.coordinates, [
-    [0, 0], [90, 0], [-180, 0],
+    [0, 0],
+    [90, 0],
+    [-180, 0],
   ]);
   assert.equal(d.query({ level: 0.5 }).valid, true);
   assert.equal(d.query().promotedArcs, 0);

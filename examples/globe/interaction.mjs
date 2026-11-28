@@ -81,7 +81,10 @@ export function createGlobeInteraction({
           ...(pinch.anchor
             ? {
                 rotation: anchorRotation(
-                  state, pinch.anchor, ...midpoint(), scale,
+                  state,
+                  pinch.anchor,
+                  ...midpoint(),
+                  scale,
                 ),
               }
             : {}),

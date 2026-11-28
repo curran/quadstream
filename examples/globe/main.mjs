@@ -6,16 +6,16 @@ import {
   resizedView,
 } from "./interaction.mjs";
 import { createCamera } from "./physics.mjs";
-import {
-  MIN_AUTO_LEVEL,
-  levelForZoom,
-  createLatestGeometry,
-} from "./lod.mjs";
+import { MIN_AUTO_LEVEL, levelForZoom, createLatestGeometry } from "./lod.mjs";
 import { createGlobeRenderer } from "./map.mjs";
 import { createMinimapRenderer } from "./minimap.mjs";
 import { GlobeWorkerClient } from "./client.mjs";
 import { fixture } from "./fixture.mjs";
-import { createRegionalLayers, regionalConfig, loadRegionalCatalog } from "./regional.mjs";
+import {
+  createRegionalLayers,
+  regionalConfig,
+  loadRegionalCatalog,
+} from "./regional.mjs";
 const $ = (id) => document.getElementById(id),
   canvas = $("globe"),
   miniCanvas = $("minimap"),
@@ -106,12 +106,20 @@ const regional = createRegionalLayers({
   onChange: schedule,
 });
 if (new URLSearchParams(location.search).get("international") !== "0") {
-  loadRegionalCatalog().then((catalog) => {
-    if (!disposed) regional.addConfigs(regionalConfig({
-      catalog,
-      counties: new URLSearchParams(location.search).get("counties") !== "0",
-    }));
-  }).catch((error) => console.warn("International boundaries unavailable", error));
+  loadRegionalCatalog()
+    .then((catalog) => {
+      if (!disposed)
+        regional.addConfigs(
+          regionalConfig({
+            catalog,
+            counties:
+              new URLSearchParams(location.search).get("counties") !== "0",
+          }),
+        );
+    })
+    .catch((error) =>
+      console.warn("International boundaries unavailable", error),
+    );
 }
 let drawStats = null;
 let requests = 0,
@@ -176,8 +184,12 @@ function diagnostics() {
         : "—"),
     "Ring stream (last clip build): " +
       (drawStats?.stream
-        ? drawStats.stream.classified + " classified, " + drawStats.stream.inside +
-          " inside, " + drawStats.stream.outside + " outside"
+        ? drawStats.stream.classified +
+          " classified, " +
+          drawStats.stream.inside +
+          " inside, " +
+          drawStats.stream.outside +
+          " outside"
         : "—"),
     "Atlas payload: " + atlasBytes + " bytes | geometry queries: " + requests,
     "Regional layers: " +
@@ -296,7 +308,10 @@ function render() {
     const minimapGeojson = minimapFrame?.geojson ?? null;
     const overlays = regional.update(state, {
       enabled:
-        ready && Boolean(activeGeojson) && !selectedFile && sourceName !== "fixture",
+        ready &&
+        Boolean(activeGeojson) &&
+        !selectedFile &&
+        sourceName !== "fixture",
       original: $("mode").value === "original",
       level: targetLevelForView(),
     });
@@ -477,7 +492,9 @@ async function init() {
       atlasBytes = 0;
     } else {
       const r = await fetch(
-        "../../node_modules/visionscarto-world-atlas/world/" + sourceName + ".json",
+        "../../node_modules/visionscarto-world-atlas/world/" +
+          sourceName +
+          ".json",
         { signal: abort.signal },
       );
       if (!r.ok) throw new Error("Atlas HTTP " + r.status);

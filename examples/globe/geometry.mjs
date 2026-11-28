@@ -1,4 +1,8 @@
-import { buildSphericalQuadstream, canonicalLonLat, buildRobustSphericalGroups } from "../../dist/index.js";
+import {
+  buildSphericalQuadstream,
+  canonicalLonLat,
+  buildRobustSphericalGroups,
+} from "../../dist/index.js";
 import { repairGeometry } from "./repair.mjs";
 // d3 and topojson-client are injected: Node tests use ESM; browser uses local UMD.
 const polys = (g) =>
@@ -185,7 +189,10 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
       });
       const engine = buildSphericalQuadstream(input, {
         maxLevel,
-        alwaysVisiblePolygons: alwaysVisiblePolygons({ features: retained }, d3),
+        alwaysVisiblePolygons: alwaysVisiblePolygons(
+          { features: retained },
+          d3,
+        ),
       });
       const full = engine.query({ level: maxLevel - 1 }).geojson.features;
       if (!full.every((f, j) => d3Compatible(work[indices[j]], f, d3, true)))
@@ -195,9 +202,15 @@ export function createGlobeGeometry(original, d3, { maxLevel = 20 } = {}) {
       return { indices, error: String(e.message ?? e) };
     }
   }
-  const { groups, working: work, unavailable, reasons: allReasons } =
-    buildRobustSphericalGroups(original, { build, repair: repairGeometry });
-  const buildMs = clock() - start, cache = new Map(), reasons = allReasons.slice(0, 4);
+  const {
+    groups,
+    working: work,
+    unavailable,
+    reasons: allReasons,
+  } = buildRobustSphericalGroups(original, { build, repair: repairGeometry });
+  const buildMs = clock() - start,
+    cache = new Map(),
+    reasons = allReasons.slice(0, 4);
   function cacheHit(key) {
     if (!cache.has(key)) return null;
     const hit = cache.get(key);

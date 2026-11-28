@@ -346,9 +346,11 @@ test("default 50m atlas: the demo floor preserves coarse country visibility", as
   const engine = createGlobeGeometry(original, d3);
   const visible = (level) =>
     new Set(
-      engine.query(level).geojson.features.flatMap((f, i) =>
-        polysOf(f.geometry).length ? [i] : [],
-      ),
+      engine
+        .query(level)
+        .geojson.features.flatMap((f, i) =>
+          polysOf(f.geometry).length ? [i] : [],
+        ),
     );
   const atZero = visible(0);
   const at4 = visible(4),
@@ -365,7 +367,10 @@ test("default 50m atlas: the demo floor preserves coarse country visibility", as
     const fine = engine.query(19).geojson.features[i];
     const fineVertices = new Set(polysOf(fine.geometry).flat(2).map(keyOf));
     for (const vertex of polysOf(coarse.geometry).flat(2))
-      assert.ok(fineVertices.has(keyOf(vertex)), name + " retains coarse vertices");
+      assert.ok(
+        fineVertices.has(keyOf(vertex)),
+        name + " retains coarse vertices",
+      );
   }
   assert.equal(engine.query(0).validatorInvalidGroups, 0);
   const missing = original.features.filter((_, i) => !atFloor.has(i));

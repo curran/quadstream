@@ -1,5 +1,11 @@
 // Demo-specific view projection and frame/source cache policy.
-import { computeFeatureCap, computeFeatureCaps, isCapVisible, lonLatToVec, filterSphericalFeatures } from "../../dist/spherical-cull.js";
+import {
+  computeFeatureCap,
+  computeFeatureCaps,
+  isCapVisible,
+  lonLatToVec,
+  filterSphericalFeatures,
+} from "../../dist/spherical-cull.js";
 export { computeFeatureCap, computeFeatureCaps, isCapVisible, lonLatToVec };
 
 // Every LOD frame keeps a subset of its source feature's vertices, so a cap
@@ -51,7 +57,11 @@ export function filterVisibleFeatures(geojson, state, capCache, source) {
   if (!features?.length) return geojson;
   const cone = orthographicViewCone(state);
   if (source) {
-    return filterSphericalFeatures(geojson, cone, features.map((f, i) => featureCap(f, i, source)));
+    return filterSphericalFeatures(
+      geojson,
+      cone,
+      features.map((f, i) => featureCap(f, i, source)),
+    );
   }
   let caps = capCache?.get(geojson);
   if (!caps) {
