@@ -1,5 +1,5 @@
 // Provisional scale thresholds, not a measured projected-error guarantee.
-export const MIN_AUTO_LEVEL = 4.2,
+export const MIN_AUTO_LEVEL = 4.4,
   MAX_LEVEL = 19;
 // Keep the scale-to-level calibration separate from the rendering floor.
 export const BASE_LOD = 4;
