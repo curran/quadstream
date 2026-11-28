@@ -92,3 +92,6 @@ export type { SphericalRepairOptions } from "./spherical-repair.js";
 
 export { createLatestGeometry, improvesLod } from "./lod-scheduler.js";
 export type { LatestGeometryOptions } from "./lod-scheduler.js";
+
+export { sphericalConnectedComponents, buildRobustSphericalGroups } from "./spherical-robust-dataset.js";
+export type { SphericalBuildGroup, RobustSphericalOptions } from "./spherical-robust-dataset.js";

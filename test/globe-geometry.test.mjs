@@ -172,12 +172,15 @@ test("unsupported connected component keeps original geometry and independent co
   const original = fc(bad, neighbor, isolated),
     engine = createGlobeGeometry(original, d3);
   const result = engine.query(0);
-  assert.equal(result.unavailable, 1);
+  // A failed connected component must remain intact, including its valid neighbor.
+  assert.equal(result.unavailable, 2);
   assert.deepEqual(result.geojson.features[0], original.features[0]);
+  assert.deepEqual(result.geojson.features[1], original.features[1]);
   assert.equal(result.geojson.features.length, 3);
-  assert.ok(result.fallbackGroups > 0);
+  assert.equal(result.fallbackGroups, 1);
+  // An independent component can still simplify at the requested level.
   assert.ok(
-    (result.geojson.features[1].geometry.coordinates[0]?.length ?? 0) < 5,
+    (result.geojson.features[2].geometry.coordinates[0]?.length ?? 0) < 5,
   );
 });
 test("named countries object decoding ignores unrelated objects", () => {
