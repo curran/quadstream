@@ -22,6 +22,7 @@
   ],
   "scripts": {
     "dev": "npm run build && node examples/progressive/server.mjs --globe",
+    "dev:restart": "node scripts/dev-restart.mjs",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prettier": "prettier --write .",
