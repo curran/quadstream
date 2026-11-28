@@ -89,3 +89,6 @@ export type { SphericalClipWindow, SphericalClipStats, SphericalClipResult } fro
 
 export { repairRing, repairGeometry } from "./spherical-repair.js";
 export type { SphericalRepairOptions } from "./spherical-repair.js";
+
+export { createLatestGeometry, improvesLod } from "./lod-scheduler.js";
+export type { LatestGeometryOptions } from "./lod-scheduler.js";
