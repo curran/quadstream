@@ -10,7 +10,10 @@ test("production build boots under a non-root base path", async ({ page }) => {
   });
   await page.goto("/migration/");
   await expect(page).toHaveTitle("Quadstream Globe");
-  await expect(page.getByRole("heading", { name: "Quadstream Globe" })).toBeVisible();
+  await expect(page.getByRole("main", { name: "Quadstream Globe" })).toBeVisible();
+  await expect(page.locator("#globe")).toBeVisible();
+  await expect(page.locator("#status")).toHaveAttribute("data-phase", "ready", { timeout: 60000 });
+  await expect.poll(() => page.locator("#globe").getAttribute("data-source-vertices")).not.toBe("0");
   await page.waitForLoadState("load");
   expect(errors).toEqual([]);
 });
